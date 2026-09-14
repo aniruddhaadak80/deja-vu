@@ -112,7 +112,10 @@ func ReadStateOf(dir string) ReadState {
 	if dir == "" {
 		dir = DefaultDir()
 	}
-	m, err := readManifest(dir)
+	// Cached, like SessionCount: readManifest also decodes sessions.gob, and
+	// the session-start hook asks this on a path where that is the expensive
+	// part. The cache stats the file, so it still sees a rebuild that landed.
+	m, err := readManifestCached(dir)
 	if err != nil {
 		return ReadStateCurrent
 	}
