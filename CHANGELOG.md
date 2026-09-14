@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A search that lands while the first index build is running says one thing rather than two that contradict each other: there is no index to answer from yet, so it no longer claims to be serving one. (#3574)
 - `deja install` refuses a TOML config that is already broken instead of splicing its block in: the JSON targets have always refused one, and an entry in a file the harness cannot load turns a missing bracket into deja's error message. (#3576)
 - The last slice of `deja show` says it is the end of the session instead of offering a next slice that is past it. (#3578)
+- `fix` no longer tells an agent that its error is not an error. The pair-mining heuristic was used on the caller and refused ten of twenty error lines a tool actually prints — `connection refused`, `permission denied`, `Exit code 137` among them — while the CLI took all twenty; the advice about pasting the output now rides along with the honest answer instead of replacing it. (#3580)
 - A sync waits for the peer list's lock instead of writing over it after two seconds. On a box slow enough for sixteen writers not to drain in that time, two machines were dropped from the list — the lost update the lock exists to prevent. A lock left by a dead process is still taken over after thirty seconds. (#3558)
 
 ### Added
