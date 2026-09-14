@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `deja install` refuses a TOML config that is already broken instead of splicing its block in: the JSON targets have always refused one, and an entry in a file the harness cannot load turns a missing bracket into deja's error message. (#3576)
 - A sync waits for the peer list's lock instead of writing over it after two seconds. On a box slow enough for sixteen writers not to drain in that time, two machines were dropped from the list — the lost update the lock exists to prevent. A lock left by a dead process is still taken over after thirty seconds. (#3558)
 
 ### Added
