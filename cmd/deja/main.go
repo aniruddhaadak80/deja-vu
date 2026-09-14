@@ -3938,14 +3938,17 @@ func emptyIndexReason(b index.BuildSummary, evicted int) string {
 // happened, and they are left where they started. When no agent history was
 // found at all, the useful next step is finding out where deja looked.
 func emptyIndexHint(what string) string {
+	// A store deja is not allowed to open, before anything else. The sessions
+	// are there, behind a permission wall doctor and sources both name (#1020)
+	// — and the branch used to sit inside the no-history one, so it was
+	// unreachable in the case that matters: a store whose files deja can see
+	// and cannot read counts as history, so the answer was "run `deja index`",
+	// which is what the reader had just done and cannot help (#3585).
+	if denied := deniedStoreCount(); denied > 0 {
+		return fmt.Sprintf("deja: %s — %d store%s could not be read (permission denied); `deja doctor` names %s",
+			what, denied, pluralS(denied), pluralWhich(denied))
+	}
 	if noAgentHistoryFound() {
-		// "no agent history was found" is a claim about the machine, and it
-		// was made over a store deja is not allowed to open: the sessions are
-		// there, behind a permission wall doctor and sources both name (#1020).
-		if denied := deniedStoreCount(); denied > 0 {
-			return fmt.Sprintf("deja: %s — %d store%s could not be read (permission denied); `deja doctor` names %s",
-				what, denied, pluralS(denied), pluralWhich(denied))
-		}
 		return "deja: " + what + " — no agent history was found on this machine; `deja sources` shows where deja looked"
 	}
 	return "deja: " + what + " — run `deja index`, or `deja doctor` to see which agent stores were found"
