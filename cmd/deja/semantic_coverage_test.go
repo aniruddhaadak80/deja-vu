@@ -107,17 +107,19 @@ func TestStatsJSONOutputIncludesSemanticSize(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = w
+	// Drained while runStats writes: stats JSON outgrows a pipe's buffer, and a
+	// read after the call is what hung the windows leg (#3493).
+	drained := drainPipe(r)
 	err = runStats(index.DefaultDir(), []string{"--json"})
 	_ = w.Close()
 	os.Stdout = old
-	var out bytes.Buffer
-	_, _ = out.ReadFrom(r)
+	out := <-drained
 	_ = r.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), `"sidecar_size": 7`) {
-		t.Fatalf("stats JSON=%s", out.String())
+	if !strings.Contains(out, `"sidecar_size": 7`) {
+		t.Fatalf("stats JSON=%s", out)
 	}
 	if err := runStats(index.DefaultDir(), []string{"--json", "--card"}); err == nil {
 		t.Fatal("stats output modes should be exclusive")
