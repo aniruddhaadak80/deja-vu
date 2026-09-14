@@ -1811,12 +1811,6 @@ func emptyStoreNote(dir string) string {
 	return ""
 }
 
-// emptyStoreSentence says why an empty store is empty.
-//
-// "No indexed history yet" is right on a first run and wrong after the reader
-// forgot everything: the history existed, and "yet" claims it never did. deja
-// can tell the two apart — forgetting leaves tombstones — and the search screen
-// already separates them on its own output.
 // noBlameHistorySentence is what blame says when the store has history and this
 // file has none. The count is the part an agent can act on: it separates "deja
 // looked and nobody touched it" from "deja has barely anything indexed".
@@ -1825,6 +1819,12 @@ func noBlameHistorySentence(name string, indexed int) string {
 		"Read this as no history for that file, not as a tool that failed.", name, indexed, pluralS(indexed))
 }
 
+// emptyStoreSentence says why an empty store is empty.
+//
+// "No indexed history yet" is right on a first run and wrong after the reader
+// forgot everything: the history existed, and "yet" claims it never did. deja
+// can tell the two apart — forgetting leaves tombstones — and the search screen
+// already separates them on its own output.
 func emptyStoreSentence(because string) string {
 	if n := len(index.Tombstones()); n > 0 {
 		return fmt.Sprintf("This machine has no indexed history left, %s — %d session%s %s been forgotten here (`deja forget --list`). This is a deliberate removal, not an absence of work.",
