@@ -270,6 +270,11 @@ var flagHints = []string{"-passw", "-pwd", "-passphrase", "-secret", "-token", "
 // costs is a real password of twelve lowercase letters or fewer handed over
 // with a space; that is the same trade `password: hunter2` already makes, and
 // nothing shorter than a word can be told from one.
+//
+// It does not spare a digit, so `docker service create --secret my-secret-v2`
+// masks a secret's *name*. That is a line of recall lost rather than a secret
+// shown, and the alternative — letting a lowercase value with a digit through —
+// is exactly `hunter2`, which is what this pattern exists to catch.
 func proseWordAfterFlag(sep, v string) bool {
 	if !strings.Contains(sep, " ") {
 		return false
