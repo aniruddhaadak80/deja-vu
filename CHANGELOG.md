@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- A mistyped command exits non-zero. `deja unforget x` printed the command that does exist and exited 0, so a script that ran it and checked the code was told the work had been done; a search that simply found nothing still exits 0. (#3567)
+- `deja doctor` calls an antigravity store missing when its root is not on disk. The env override was handed back as given, so a variable pointing at a directory that is gone read as a store that is there. (#3568)
 - A sync waits for the peer list's lock instead of writing over it after two seconds. On a box slow enough for sixteen writers not to drain in that time, two machines were dropped from the list — the lost update the lock exists to prevent. A lock left by a dead process is still taken over after thirty seconds. (#3558)
 
 ### Added

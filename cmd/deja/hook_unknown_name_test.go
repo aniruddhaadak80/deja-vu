@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,8 +58,9 @@ func TestAnUnknownHookNameIsNotAQuery(t *testing.T) {
 
 	// A real mistyped command is still read as a search — the reading #674
 	// chose, and the right one for a word somebody typed. It goes to stderr,
-	// so what says it ran is the store it built to answer.
-	if _, err := captureRun(t, "sarch"); err != nil {
+	// so what says it ran is the store it built to answer. The exit code says
+	// the command was wrong, which is the one thing a script can act on.
+	if _, err := captureRun(t, "sarch"); err != nil && !errors.Is(err, errAlreadySaid) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "manifest.gob")); err != nil {
