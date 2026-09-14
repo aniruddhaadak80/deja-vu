@@ -3,6 +3,7 @@ package redact
 import (
 	"math"
 	"sync/atomic"
+	"unicode/utf8"
 
 	"github.com/vshulcz/deja-vu/internal/query"
 	"os"
@@ -52,14 +53,21 @@ var (
 	// in RE2, so a Cyrillic or CJK key word can never sit behind it — these get
 	// their own pattern. A Russian speaker writing "пароль: …" had the secret
 	// stored in the clear because every pattern here was English-only.
-	genericKVIntlRE = regexp.MustCompile(`(?i)(парол[ьяею]|токен[ауы]?|секрет[ауы]?|ключ[аеиуом]?|contraseña|senha|passwort|密码|密碼|パスワード|비밀번호)(\\*['"]?\s*[:=]\s*)(\\*['"]?)([A-Za-z0-9/+=._-]{16,})(\\*['"]?)`)
+	genericKVIntlRE = regexp.MustCompile(`(?i)(^|[^\p{L}\p{N}_])(парол[ьяею]|токен[ауы]?|секрет[ауы]?|ключ[аеиуом]?|contraseña|senha|passwort|密码|密碼|パスワード|비밀번호)(\\*['"]?\s*[:=]\s*)(\\*['"]?)([A-Za-z0-9/+=._-]{16,})(\\*['"]?)`)
 	// The same key words with a few of their own between the word and the
 	// colon. "пароль от стейджа: …" is how the line is actually written, and
 	// genericKVIntlRE needs the delimiter to follow the word directly. The
 	// value class is unchanged — 16 or more ASCII characters — so a sentence
 	// that merely mentions a token ("токен лежит в файле: строка 12") still
 	// matches nothing.
-	genericKVIntlFillerRE = regexp.MustCompile(`(?i)(парол[ьяею]|токен[ауы]?|секрет[ауы]?|ключ[аеиуом]?|contraseña|senha|passwort|密码|密碼|パスワード|비밀번호)([^\n:=]{1,32}[:=]\s*)(\\*['"]?)([A-Za-z0-9/+=._-]{16,})(\\*['"]?)`)
+	// Bounded on both sides, because RE2 has no \b for these alphabets and the
+	// key words live inside ordinary ones: "включены", "исключение",
+	// "переключены" and "выключен" all contain "ключ". Unbounded, the filler
+	// reached across the sentence and masked what followed — a markdown link
+	// came back as `https:[redacted:credential]` and a log path as the whole
+	// value (#3589). The leading group is a character, not a lookbehind, so it
+	// is put back with the rest.
+	genericKVIntlFillerRE = regexp.MustCompile(`(?i)(^|[^\p{L}\p{N}_])(парол[ьяею]|токен[ауы]?|секрет[ауы]?|ключ[аеиуом]?|contraseña|senha|passwort|密码|密碼|パスワード|비밀번호)([^\p{L}\n:=][^\n:=]{0,32}[:=]\s*)(\\*['"]?)([A-Za-z0-9/+=._-]{16,})(\\*['"]?)`)
 	bearerRE              = regexp.MustCompile(`(?i)\b(Bearer|Basic)(\s+)([A-Za-z0-9._~+/=-]{16,})`)
 	// A secret named in prose and quoted rather than assigned. Tool output is
 	// full of this shape — `password authentication failed for user "admin"
@@ -142,7 +150,72 @@ var (
 	// Nobody writes `--password` in prose: the flag is machine input, and what
 	// follows it is the value whatever its length.
 	passwordFlagRE = regexp.MustCompile(`(?i)(^|\s)(--?(?:password|passwd|pwd))([ =]\\*['"]?)([^\s'"]{3,128})`)
+	// A password assigned with `=`, at the length people actually choose. The
+	// key-value floor of sixteen characters is right where the key word could
+	// be describing anything — `token`, `secret`, `key` — and wrong for this
+	// family, where the word names the value: measured through an index pass,
+	// `password=JdbcPass2026` in a JDBC URL, `password=QueryPass2026` in a
+	// query string, `--from-literal=password=K8sPass2026x` and a dotenv
+	// `DATABASE_PASSWORD=DotenvPass2026` all reached `deja show` in the clear
+	// (#3588).
+	//
+	// An equals sign and not a colon. `password: hunter2` is prose by an older
+	// decision this does not touch (escaped_json_test) — a colon is how a
+	// sentence is written and `=` is how a value is assigned.
+	passwordAssignRE = regexp.MustCompile(`(?i)\b([\w.-]{0,64}?(?:password|passwd|pwd))(\\*['"]?=\s*)(\\*['"]?)([^\s'"&]{3,128})`)
+	// `DB_PASS=…`, the other half of the same family. Its own pattern because
+	// `pass` is a word that lives inside others: the separator before it is
+	// what keeps this out of `bypass=` and `compass=`, and an env var is
+	// `DB_PASS`, never `dbpass`. The full words above need no such guard —
+	// `PGPASSWORD` has no separator and is a credential all the same.
+	passSuffixAssignRE = regexp.MustCompile(`(?i)(?:^|[^\w.-])([\w.-]*[_.\-]pass)(\\*['"]?=\s*)(\\*['"]?)([^\s'"&]{3,128})`)
+	// A secret whose VALUE is not ASCII. Every pattern above ends in
+	// `[A-Za-z0-9/+=._-]{16,}`, so `пароль: БазаПароль2026` and `password:
+	// 非常に長いパスワード2026` were stored in the clear whatever the key word or
+	// the length — #1319 widened the key words to the languages people type in
+	// and left the value class where it was (#3587).
+	//
+	// The digit is what keeps this away from prose. A value class wide enough
+	// for Cyrillic is wide enough for an ordinary word, and "пароль:
+	// неправильный" is a sentence; a passphrase someone chose is
+	// "БазаПароль2026". Eight runes rather than sixteen because a word in
+	// these scripts carries more meaning per character — `数据库密码2026年` is
+	// ten — the same reasoning #1319 recorded for the line-length bound.
+	//
+	// Words between the key and the colon, the way genericKVIntlFillerRE
+	// allows: "пароль от стейджа: …" is how the line is actually written.
+	intlValueRE = regexp.MustCompile(`(?i)(?:^|[^\p{L}\p{N}_])(парол[ьяею]|токен[ауы]?|секрет[ауы]?|ключ[аеиуом]?|contraseña|senha|passwort|密码|密碼|パスワード|비밀번호|api[_-]?key|secret|token|passwd|password)([^\p{L}\n:=]?[^\n:=]{0,32}[:=]\s*)(\\*['"]?)([^\s'"]*[^\x00-\x7f][^\s'"]*)(\\*['"]?)`)
 )
+
+// worthRedactingIntl reports whether a non-ASCII value looks like a secret
+// rather than a word. A digit is the signal: prose in these scripts does not
+// carry one, and a passphrase someone chose usually does.
+func worthRedactingIntl(v string) bool {
+	v = strings.Trim(v, `"'`)
+	if n := utf8.RuneCountInString(v); n < 8 || n > 128 {
+		return false
+	}
+	if notASecretValue(v) {
+		return false
+	}
+	for _, r := range v {
+		if r >= '0' && r <= '9' {
+			return true
+		}
+	}
+	return false
+}
+
+// hasNonASCII reports whether the text carries a byte outside ASCII, which is
+// the necessary condition for intlValueRE to match anything.
+func hasNonASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return true
+		}
+	}
+	return false
+}
 
 // notASecretValue reports whether what follows a password key is plainly not a
 // password: a placeholder, a variable the shell will expand, or a word that
@@ -330,14 +403,14 @@ func Text(s string) (string, Counts) {
 	if kvAssignmentNearbyHints(lower, kvIntlHints) {
 		intlPatternRuns.Add(1)
 		s = replaceSubmatch(s, genericKVIntlRE, "credential", counts, func(m []string) string {
-			return m[1] + m[2] + m[3] + "[redacted:credential]" + closingQuote(m[3], m[5])
+			return m[1] + m[2] + m[3] + m[4] + "[redacted:credential]" + closingQuote(m[4], m[6])
 		})
 	}
 	// Its own gate: the adjacency one cannot see a delimiter that is a few
 	// words away, which is the whole point of this pattern.
 	if strings.ContainsAny(s, ":=") && containsAnyFold(s, kvIntlHints) {
 		s = replaceSubmatch(s, genericKVIntlFillerRE, "credential", counts, func(m []string) string {
-			return m[1] + m[2] + m[3] + "[redacted:credential]" + closingQuote(m[3], m[5])
+			return m[1] + m[2] + m[3] + m[4] + "[redacted:credential]" + closingQuote(m[4], m[6])
 		})
 	}
 	// Its own gate rather than the key-value one: that gate asks for a
@@ -346,6 +419,22 @@ func Text(s string) (string, Counts) {
 	if strings.Contains(lower, "passw") || strings.Contains(lower, "pwd") {
 		s = replaceGroup(s, passwordFlagRE, 4, "credential", counts, func(m []string) bool {
 			return notASecretValue(m[4])
+		})
+		s = replaceGroup(s, passwordAssignRE, 4, "credential", counts, func(m []string) bool {
+			return notASecretValue(m[4])
+		})
+	}
+	if strings.Contains(lower, "pass") {
+		s = replaceGroup(s, passSuffixAssignRE, 4, "credential", counts, func(m []string) bool {
+			return notASecretValue(m[4])
+		})
+	}
+	// Its own gate, on the one thing the pattern needs: a byte outside ASCII.
+	// Every other pattern here can only match an ASCII value, so this runs
+	// exactly where they cannot.
+	if hasNonASCII(s) && (strings.ContainsAny(s, ":=")) {
+		s = replaceGroup(s, intlValueRE, 4, "credential", counts, func(m []string) bool {
+			return !worthRedactingIntl(m[4])
 		})
 	}
 	if strings.Contains(lower, "sshpass") {

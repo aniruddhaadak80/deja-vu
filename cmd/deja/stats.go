@@ -43,6 +43,10 @@ func runStats(dir string, args []string) error {
 	html := false
 	redaction := false
 	var options search.Options
+	// What the reader typed, before checkHarness rewrites an alias: naming a
+	// "deja" filter to someone who passed `--harness notes` names a flag they
+	// did not pass, the same reason `last` keeps these (#2191).
+	sinceRaw, harnessRaw := "", ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--json":
@@ -90,6 +94,7 @@ func runStats(dir string, args []string) error {
 			switch args[i-1] {
 			case "--harness":
 				options.Harness = v
+				harnessRaw = v
 			case "--project":
 				options.Project = v
 			case "--role":
@@ -100,6 +105,7 @@ func runStats(dir string, args []string) error {
 					return err
 				}
 				options.Since = d
+				sinceRaw = v
 			}
 		default:
 			return fmt.Errorf("stats: unknown flag %q", args[i])
@@ -138,7 +144,11 @@ func runStats(dir string, args []string) error {
 	if redaction {
 		return printRedactionReport(dir, jsonOut)
 	}
-	ss, err := index.SearchWithRecovery(dir, search.Options{All: true}, progress)
+	// Role travels with the query rather than being applied only afterwards:
+	// the index withholds command, files and edit records from a caller that
+	// did not ask for them, so `deja stats --role command` filtered a set those
+	// records had already been dropped from and reported an empty store (#3592).
+	ss, err := index.SearchWithRecovery(dir, search.Options{All: true, Role: options.Role}, progress)
 	if err != nil {
 		// `mkdir …/idx.tmp: permission denied` names a path nobody chose and a
 		// syscall nobody can act on. index and search have worded this since
@@ -167,6 +177,19 @@ func runStats(dir string, args []string) error {
 	report.PolicyWithheld = policyHidden
 	report.EmptiedByPolicy = report.TotalSessions == 0 && policyHidden > 0
 	if report.TotalSessions == 0 {
+		// A filter emptied a store that has sessions in it. "run `deja index`"
+		// is then advice for a state deja is not in — indexing changes nothing
+		// and doctor reports the stores as found — which is the same backside
+		// `last` grew when it learned to filter (#637, #949).
+		//
+		// Counted off the manifest rather than off `ss`: --role travels with the
+		// query, so a role the store holds none of empties the retrieval itself
+		// and the corpus size is the only thing left that knows better.
+		if n, err := index.SessionCount(dir); err == nil && n > 0 {
+			report.NarrowedBy = activeFilters(options, sinceRaw, harnessRaw)
+			report.OlderThanWindow = olderThanWindow(dir, options.Since)
+			report.NoSuchRole = emptyRoleNote(dir, options.Role)
+		}
 		report.HiddenBySettings = hiddenByOwnSettings()
 	}
 	// Replaced spans are kept out of ordinary retrieval, so they are not in
@@ -274,6 +297,12 @@ func printStats(w io.Writer, r stats.Report) {
 			// The rule is named on stderr a line above; repeating "run `deja
 			// index`" here sends the reader after a build that changes nothing.
 			fmt.Fprintln(w, "deja: nothing to report — the trust policy withholds every indexed session from this path")
+			return
+		}
+		if r.NarrowedBy != "" {
+			fmt.Fprintf(w, "deja: no sessions match %s\n", r.NarrowedBy)
+			fmt.Fprint(w, r.OlderThanWindow)
+			fmt.Fprint(w, r.NoSuchRole)
 			return
 		}
 		if r.HiddenBySettings != "" {
