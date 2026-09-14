@@ -576,9 +576,15 @@ func blameTextResult(dir string, o search.BlameOptions, path string, limit int) 
 		// touched this file" from "deja has nothing indexed at all" — the
 		// distinction #2862 drew for recall, on the tool that is called before
 		// an edit. Said in the shape this payload already says everything else.
-		if metas, err := index.AllMeta(dir); err == nil && len(metas) == 0 {
+		metas, err := index.AllMeta(dir)
+		if err == nil && len(metas) == 0 {
 			return string(mustMarshalBlameNote(emptyStoreSentence("so nothing can be found"))), 0, nil
 		}
+		// And the other half of that distinction: a store full of history where
+		// nothing touched this file. That answered `[]` too, which reads as a
+		// tool that failed rather than as a file with no history — every other
+		// mode says so in a sentence, and the CLI has all along (#3570).
+		return string(mustMarshalBlameNote(noBlameHistorySentence(target.Base, len(metas)))), 0, nil
 	}
 	body := mustMarshalBlame(hits, 0, false)
 	for len(body) > blameMCPBudget && len(hits) > 1 {
@@ -1811,6 +1817,14 @@ func emptyStoreNote(dir string) string {
 // forgot everything: the history existed, and "yet" claims it never did. deja
 // can tell the two apart — forgetting leaves tombstones — and the search screen
 // already separates them on its own output.
+// noBlameHistorySentence is what blame says when the store has history and this
+// file has none. The count is the part an agent can act on: it separates "deja
+// looked and nobody touched it" from "deja has barely anything indexed".
+func noBlameHistorySentence(name string, indexed int) string {
+	return fmt.Sprintf("No session on this machine mentions %s — searched %d indexed session%s. "+
+		"Read this as no history for that file, not as a tool that failed.", name, indexed, pluralS(indexed))
+}
+
 func emptyStoreSentence(because string) string {
 	if n := len(index.Tombstones()); n > 0 {
 		return fmt.Sprintf("This machine has no indexed history left, %s — %d session%s %s been forgotten here (`deja forget --list`). This is a deliberate removal, not an absence of work.",
