@@ -1930,12 +1930,11 @@ func printIgnored(w io.Writer, pol policy.Policy, dir string) {
 				n++
 			}
 		}
-		switch {
-		case n == 0:
+		if n == 0 {
 			fmt.Fprintf(w, "  %-12s %q matches no indexed session — a rule is matched against the project name and the transcript's path, not the directory you ran in\n", "", pat)
-		default:
-			fmt.Fprintf(w, "  %-12s %q hides %d of %d indexed session%s\n", "", pat, n, len(metas), pluralS(len(metas)))
+			continue
 		}
+		fmt.Fprintf(w, "  %-12s %q hides %d of %d indexed session%s\n", "", pat, n, len(metas), pluralS(len(metas)))
 	}
 }
 
