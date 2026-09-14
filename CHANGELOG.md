@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `blame` tells an agent that a file has no history instead of answering `[]`. It is the tool called before an edit, and an empty array reads as a tool that failed; the note names the file and how many sessions were searched. (#3570)
 - A sync waits for the peer list's lock instead of writing over it after two seconds. On a box slow enough for sixteen writers not to drain in that time, two machines were dropped from the list — the lost update the lock exists to prevent. A lock left by a dead process is still taken over after thirty seconds. (#3558)
 
 ### Added
