@@ -2,11 +2,8 @@ package main
 
 import (
 	"bytes"
-	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"syscall"
 	"testing"
 
 	"github.com/vshulcz/deja-vu/internal/index"
@@ -56,32 +53,4 @@ func TestAStoreThatAnswersStillSaysItIsServingWhatItHas(t *testing.T) {
 	if !strings.Contains(said.String(), "as it was") {
 		t.Fatalf("a store that can answer said nothing about serving the older view:\n%s", said.String())
 	}
-}
-
-// holdTheIndexLock takes the lock the way another deja would, so the search
-// under test takes the path it takes when a build is running.
-func holdTheIndexLock(t *testing.T) {
-	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("the lock is taken differently on windows")
-	}
-	if os.Getenv("DEJA_INDEX_DIR") == "" {
-		hermeticEnv(t)
-	}
-	path := index.DefaultDir() + ".lock"
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		_ = f.Close()
-		t.Fatalf("could not hold the index lock: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-		_ = f.Close()
-	})
 }
