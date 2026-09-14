@@ -116,6 +116,11 @@ leaving surrounding text searchable. The current patterns cover:
 - known GitHub, GitLab, OpenAI/Anthropic-style, Groq, xAI, Hugging Face, npm,
   Slack, and Google token prefixes;
 - URLs containing `scheme://user:password@host` credentials;
+- a credential handed to a program on its command line: `sshpass -p`,
+  `mysql -pSecret`, `curl -u user:pass`, and the long flags that name what they
+  carry — `--password`, `--passphrase`, `--secret`, `--token`, `--api-key`.
+  With a space rather than an `=`, a value that reads as an ordinary word is
+  left alone, so a sentence about the flag keeps its next word;
 - bare high-entropy values in secret-shaped positions: the value side of an
   assignment (`ANYTHING=<random-looking string>`, including the Telegram
   `digits:token` shape) and a token standing alone on its own line. Entropy
