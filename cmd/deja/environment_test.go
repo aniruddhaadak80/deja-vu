@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -88,22 +87,24 @@ func TestEnvironmentReachesTheSessionStartInjection(t *testing.T) {
 	// Through the hook itself, not the digest helper: a checkout with no
 	// session of its own returns an empty digest, and the block must survive
 	// that path — it is about the machine, not the project.
-	var out bytes.Buffer
 	stdout := os.Stdout
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
 	os.Stdout = w
+	// Drained while the hook writes: an injection block is exactly the kind of
+	// output that outgrows a pipe's buffer (#3493).
+	drained := drainPipe(r)
 	hookErr := runHookContext(dir, true)
 	os.Stdout = stdout
 	_ = w.Close()
-	_, _ = out.ReadFrom(r)
+	block := <-drained
 	if hookErr != nil {
 		t.Fatal(hookErr)
 	}
-	if !strings.Contains(out.String(), "command not found: shellcheck") {
-		t.Fatalf("the injection carries no environment block:\n%s", out.String())
+	if !strings.Contains(block, "command not found: shellcheck") {
+		t.Fatalf("the injection carries no environment block:\n%s", block)
 	}
 }
 

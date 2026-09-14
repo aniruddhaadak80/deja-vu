@@ -544,13 +544,13 @@ func TestAdditionalDispatchAndHelperBranches(t *testing.T) {
 	t.Cleanup(func() { index.LockWaitNotice = oldNotice })
 	os.Args = []string{"deja", "version"}
 	os.Stdout = w
+	drained := drainPipe(r)
 	main()
 	_ = w.Close()
 	os.Args = oldArgs
 	os.Stdout = oldStdout
-	b, _ := io.ReadAll(r)
-	if !strings.Contains(string(b), "deja dev") {
-		t.Fatalf("main version = %q", b)
+	if out := <-drained; !strings.Contains(out, "deja dev") {
+		t.Fatalf("main version = %q", out)
 	}
 }
 
