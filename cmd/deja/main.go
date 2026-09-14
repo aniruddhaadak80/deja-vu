@@ -3595,9 +3595,13 @@ func runForget(dir string, args []string) error {
 	// The notes are decisions the reader deliberately kept, so folding them
 	// into the session count reads as "four conversations" when half of it is
 	// their own writing (#690).
-	if result.Notes > 0 {
-		fmt.Fprintf(os.Stdout, "%d of them %s promoted note%s — the decisions you kept, not raw sessions\n",
-			result.Notes, verbWere(result.Notes), pluralS(result.Notes))
+	// Through forgetNotesLine, like the dry run above it. #957 taught that
+	// sentence to tell a `remember` note from a promoted one and only wired it
+	// into `--dry-run`, so the run that actually dropped a day of notes still
+	// called them promoted — the same command, two answers, and the wrong one
+	// on the path that changes something (#3599).
+	if line := forgetNotesLine(result); line != "" {
+		fmt.Fprintln(os.Stdout, line)
 	}
 	return nil
 }
