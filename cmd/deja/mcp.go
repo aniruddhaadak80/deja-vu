@@ -576,9 +576,15 @@ func blameTextResult(dir string, o search.BlameOptions, path string, limit int) 
 		// touched this file" from "deja has nothing indexed at all" — the
 		// distinction #2862 drew for recall, on the tool that is called before
 		// an edit. Said in the shape this payload already says everything else.
-		if metas, err := index.AllMeta(dir); err == nil && len(metas) == 0 {
+		metas, err := index.AllMeta(dir)
+		if err == nil && len(metas) == 0 {
 			return string(mustMarshalBlameNote(emptyStoreSentence("so nothing can be found"))), 0, nil
 		}
+		// And the other half of that distinction: a store full of history where
+		// nothing touched this file. That answered `[]` too, which reads as a
+		// tool that failed rather than as a file with no history — every other
+		// mode says so in a sentence, and the CLI has all along (#3570).
+		return string(mustMarshalBlameNote(noBlameHistorySentence(target.Base, len(metas)))), 0, nil
 	}
 	body := mustMarshalBlame(hits, 0, false)
 	for len(body) > blameMCPBudget && len(hits) > 1 {
@@ -693,8 +699,16 @@ func mcpFix(dir, name string, raw json.RawMessage) (string, int, error) {
 		return pol.Allows(policy.ActivationMCP, project)
 	})
 	if len(pairs) == 0 {
+		// What the heuristic is for is mining pairs out of a transcript, where
+		// a false positive costs a bad pair. Used on the caller it accuses the
+		// agent of passing the wrong thing: measured against twenty error lines
+		// a tool actually prints, it refused ten — `connection refused`,
+		// `permission denied`, `segmentation fault`, `OOMKilled`, `Exit code
+		// 137` among them — and the CLI took all twenty (#3580). So the
+		// guidance stays and the accusation goes: the sentence says what is
+		// true either way, and what to do if it really was a summary.
 		if !index.LooksLikeError(a.Error) {
-			return "That text does not read like an error line - pass the failing output itself.", 0, nil
+			return "No session on this machine ran a command after that error. If that was a summary rather than the failing output, pass the output itself." + emptyStoreNote(dir), 0, nil
 		}
 		// Held-but-unconfirmed is not never-seen, and the agent asking is
 		// the one that would otherwise re-derive the remedy (#2282).
@@ -1803,6 +1817,14 @@ func emptyStoreNote(dir string) string {
 		return " " + emptyStoreSentence("so nothing can be found")
 	}
 	return ""
+}
+
+// noBlameHistorySentence is what blame says when the store has history and this
+// file has none. The count is the part an agent can act on: it separates "deja
+// looked and nobody touched it" from "deja has barely anything indexed".
+func noBlameHistorySentence(name string, indexed int) string {
+	return fmt.Sprintf("No session on this machine mentions %s — searched %d indexed session%s. "+
+		"Read this as no history for that file, not as a tool that failed.", name, indexed, pluralS(indexed))
 }
 
 // emptyStoreSentence says why an empty store is empty.

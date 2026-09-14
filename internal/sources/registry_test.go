@@ -128,6 +128,15 @@ func validateRegistryEntry(t *testing.T, root string, entry formatRegistryEntry)
 }
 
 func parseRegistryFixture(t *testing.T, id, path string) []model.Session {
+	return parseRegistryFixtureIn(t, id, path, t.TempDir())
+}
+
+// parseRegistryFixtureIn is parseRegistryFixture with the working directory
+// given rather than made, so the hostile-path test can hand it a directory
+// whose name carries a space, a percent octet and a non-ASCII character — the
+// shape a store is under on somebody else's machine, and the one the Copilot
+// Chat reader was wrong about until a contributor hit it (#3498, #3505).
+func parseRegistryFixtureIn(t *testing.T, id, path, work string) []model.Session {
 	t.Helper()
 	var (
 		sessions []model.Session
@@ -154,7 +163,7 @@ func parseRegistryFixture(t *testing.T, id, path string) []model.Session {
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
-		db := filepath.Join(t.TempDir(), "opencode.db")
+		db := filepath.Join(work, "opencode.db")
 		if out, runErr := exec.Command("sqlite3", db, string(sql)).CombinedOutput(); runErr != nil {
 			t.Fatalf("create sqlite fixture: %v: %s", runErr, out)
 		}
@@ -180,7 +189,7 @@ func parseRegistryFixture(t *testing.T, id, path string) []model.Session {
 			if readErr != nil {
 				t.Fatal(readErr)
 			}
-			db := filepath.Join(t.TempDir(), "goose.db")
+			db := filepath.Join(work, "goose.db")
 			if out, runErr := exec.Command("sqlite3", db, string(sql)).CombinedOutput(); runErr != nil {
 				t.Fatalf("create sqlite fixture: %v: %s", runErr, out)
 			}
@@ -199,7 +208,7 @@ func parseRegistryFixture(t *testing.T, id, path string) []model.Session {
 			}
 			// agents/<agent>/agent/openclaw-agent.sqlite: the agent id is read
 			// off the path, so the fixture goes in at the same depth.
-			db := filepath.Join(t.TempDir(), "main", "agent", "openclaw-agent.sqlite")
+			db := filepath.Join(work, "main", "agent", "openclaw-agent.sqlite")
 			if mkErr := os.MkdirAll(filepath.Dir(db), 0o755); mkErr != nil {
 				t.Fatal(mkErr)
 			}
@@ -223,7 +232,7 @@ func parseRegistryFixture(t *testing.T, id, path string) []model.Session {
 		// <project>/.crush/crush.db: the project is the directory the store
 		// sits under, so the fixture goes in at the same depth or the parser
 		// names the wrong one.
-		db := filepath.Join(t.TempDir(), "demo", ".crush", "crush.db")
+		db := filepath.Join(work, "demo", ".crush", "crush.db")
 		if mkErr := os.MkdirAll(filepath.Dir(db), 0o755); mkErr != nil {
 			t.Fatal(mkErr)
 		}
@@ -241,7 +250,7 @@ func parseRegistryFixture(t *testing.T, id, path string) []model.Session {
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
-		db := filepath.Join(t.TempDir(), "state.db")
+		db := filepath.Join(work, "state.db")
 		if out, runErr := exec.Command("sqlite3", db, string(sql)).CombinedOutput(); runErr != nil {
 			t.Fatalf("create sqlite fixture: %v: %s", runErr, out)
 		}
@@ -254,7 +263,7 @@ func parseRegistryFixture(t *testing.T, id, path string) []model.Session {
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
-		db := filepath.Join(t.TempDir(), "threads.db")
+		db := filepath.Join(work, "threads.db")
 		// On stdin rather than as an argument: this fixture documents its
 		// opaque blob in a leading `--` comment, and the sqlite3 CLI reads a
 		// leading `--` as an option.

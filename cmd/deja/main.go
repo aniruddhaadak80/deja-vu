@@ -29,6 +29,13 @@ import (
 
 var version = "dev"
 
+// errAlreadySaid exits non-zero for a command that has already told the reader
+// what went wrong. Without it the choice was between a silent success and the
+// same sentence twice: `deja unforget x` printed "that is not a command, here
+// is the one that is" and exited 0, so a script that checked the code was told
+// the work had been done.
+var errAlreadySaid = errors.New("already said")
+
 func main() {
 	// A command that lands mid-rebuild waits for the whole of it, and silence
 	// there reads as a hang rather than as a queue (#994).
@@ -41,7 +48,12 @@ func main() {
 	stopProfiling := startProfiling()
 	if err := run(os.Args[1:]); err != nil {
 		stopProfiling()
-		fmt.Fprintln(os.Stderr, "deja:", rebuildWindowError(err))
+		// Already said, on stderr, in the words that fit what happened: a
+		// second sentence here would repeat it. The exit code is the point —
+		// a command nobody typed correctly must not look like one that worked.
+		if !errors.Is(err, errAlreadySaid) {
+			fmt.Fprintln(os.Stderr, "deja:", rebuildWindowError(err))
+		}
 		os.Exit(1)
 	}
 	stopProfiling()
@@ -716,6 +728,13 @@ func showWindowNote(offset, returned, total int) string {
 	}
 	first := offset + 1
 	last := offset + returned
+	if last >= total {
+		// The last slice has no next one, and pointing at the offset after it
+		// sent the reader to "--offset 16 is past the end — the session has 16
+		// messages", which is deja answering its own advice (#3578).
+		return fmt.Sprintf("deja: showing message%s %d-%d of %d — the end of the session",
+			pluralS(returned), first, last, total)
+	}
 	return fmt.Sprintf("deja: showing message%s %d-%d of %d — `--offset %d` reads the next slice",
 		pluralS(returned), first, last, total, last)
 }
@@ -1234,7 +1253,14 @@ func ensureForCLISearch(dir string, o search.Options, force bool, progress io.Wr
 	}
 	if stale {
 		requestWarmup(dir)
-		fmt.Fprintln(progress, "deja: answering from the index as it was — refreshing in the background")
+		// Only when there is an index to answer from. On a first build there is
+		// not, and the two lines contradicted each other on the worst run to
+		// contradict anything — a new machine's first search said "answering
+		// from the index as it was" and then "the index is being rebuilt right
+		// now, run this again in a moment" (#3574).
+		if index.ReadableSnapshot(dir) {
+			fmt.Fprintln(progress, "deja: answering from the index as it was — refreshing in the background")
+		}
 	}
 	return nil
 }
@@ -1392,6 +1418,7 @@ func searchWithOptions(dir string, args []string, sourceInstance string, bare bo
 	if note := otherWordFormsNote(dir, o, hits); note != "" {
 		fmt.Fprint(os.Stderr, note)
 	}
+	mistyped := false
 	if len(hits) == 0 {
 		// The policy is named before the generic advice: "try fewer words" is
 		// wrong counsel for someone whose words were fine (#680). A filter the
@@ -1408,7 +1435,7 @@ func searchWithOptions(dir string, args []string, sourceInstance string, bare bo
 			// the line lives for the other miss, so it says it itself.
 			fmt.Fprint(os.Stderr, ignoredHiddenNoteFor("answer", index.IgnoredWithAllTerms(dir, query.Tokens(o.Query))))
 		default:
-			printNoMatches(os.Stderr, dir, o.Query, o.Regex)
+			mistyped = printNoMatches(os.Stderr, dir, o.Query, o.Regex)
 		}
 	}
 	if o.Capped && len(hits) > 0 {
@@ -1466,6 +1493,15 @@ func searchWithOptions(dir string, args []string, sourceInstance string, bare bo
 	// however close its first word sits to a command name.
 	if bare && len(hits) > 0 && len(strings.Fields(o.Query)) == 1 {
 		fmt.Fprint(os.Stderr, commandHint(o.Query))
+	}
+	// A search that found nothing is not a failure — that is the ordinary
+	// answer to a question the history cannot settle. A command name that does
+	// not exist is: `deja unforget x` did nothing, said so, and exited 0, so a
+	// script that ran it and checked the code was told otherwise. The hint is
+	// narrow enough to carry the distinction — it stays quiet unless a real
+	// command is within one edit of what was typed.
+	if mistyped {
+		return errAlreadySaid
 	}
 	return nil
 }
@@ -1619,7 +1655,7 @@ func termCountLine(dir, q string) string {
 // index holds zero sessions concludes the tool is broken rather than that
 // their query missed. It fired on every ordinary miss, so the signature could
 // not be used to recognise the failure it was written for (#637).
-func printNoMatches(w io.Writer, dir, q string, regex bool) {
+func printNoMatches(w io.Writer, dir, q string, regex bool) (mistypedCommand bool) {
 	// An empty store is not a query problem: "fewer words" cannot help when
 	// nothing is indexed, and `last`, `blame` and the brief all say what to do
 	// instead. Search is the command a new machine reaches for first (#832).
@@ -1698,6 +1734,7 @@ func printNoMatches(w io.Writer, dir, q string, regex bool) {
 	// naming.
 	if hint := commandHint(q); hint != "" {
 		fmt.Fprint(w, hint)
+		mistypedCommand = true
 	}
 	// Last of the reasons a miss is not a miss, and the only one where deja is
 	// holding the answer rather than withholding it.
@@ -1707,6 +1744,7 @@ func printNoMatches(w io.Writer, dir, q string, regex bool) {
 	if note := hiddenByOwnSettings(); note != "" {
 		fmt.Fprint(w, note)
 	}
+	return mistypedCommand
 }
 
 // roleServedHint names the answer deja is holding but ranking will never

@@ -216,7 +216,17 @@ import (
 // through `deja sync export`, which sends records to another machine. Every
 // earlier redaction fix shipped without one, which is why this bump is worth its
 // re-read.
-const version = 41
+//
+// 42 masks a password handed to a program as a long flag at the length people
+// actually choose. The key-value patterns take any value of sixteen characters
+// or more, which is right where a short value is as likely to be a word and
+// wrong after `--password`, where the flag says what the value is: measured
+// through an index pass, `mysql --password=MyRootPass2026` and `app
+// --password=Pass2026Short` reached `deja show` and `deja share` in the clear.
+// Same reasoning as 41 — redaction runs at ingest, so without the bump the fix
+// holds for the next conversation and leaves every earlier one quotable
+// (#3572).
+const version = 42
 
 // onDiskFormat is how the store is laid out on disk — the record encoding, the
 // bucket encoding, the manifest's own shape. It moves only when a reader of an

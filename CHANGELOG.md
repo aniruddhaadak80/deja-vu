@@ -7,19 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- A sync waits for the peer list's lock instead of writing over it after two seconds. On a box slow enough for sixteen writers not to drain in that time, two machines were dropped from the list — the lost update the lock exists to prevent. A lock left by a dead process is still taken over after thirty seconds. (#3558)
-
 ### Added
 - `deja bench read`: what it costs to read a database-backed store, and what one long escape-heavy value does to it. Every other benchmark runs against an already-indexed corpus, which is how a reader that took 2,287s on a 6.16 MB value stayed invisible while all of them held flat. (#3552)
 - A store that is slow to read says which one it is and that it is still moving, every thirty seconds, and its read time lands on its line. A pass over a 520 MB store gave thirteen minutes of one static line and no way to tell a slow read from a stuck one; the slowest store on a 3.4 GB corpus reads in 10s, so nothing says anything on an ordinary run. (#3555)
 - `deja bench ingest`: what an index update costs, per class of change — unchanged, an appended turn, a new transcript, a renamed one, a rewritten one — with whether the pass replaced the records already on file as the gate. (#3507, #3546)
-
-### Fixed
-- A full rebuild keeps the sessions whose transcripts the client deleted. Claude Code cleans up after 30 days and the incremental pass held them, but a rebuild — what an index-version bump, a changed exclude list and a damaged index all run — wrote the store from the sources alone: 6 of 8 sessions gone on a measured store. `deja forget` still drops one for good. (#3529)
-- The first question after an upgrade is answered from the index that is there while the sources are re-read behind it, the way a stale index is already handled. A content-version bump made it wait for the whole pass — 13m54s on a 520 MB store, where the agent that asked gave up after a minute. A layout this build cannot read, and text written before the redaction that masks it, still rebuild first. (#3552)
-- The opencode reader tests the compaction flag by type instead of reading the value behind it: current opencode keeps an object of file diffs under the same key, which came to 247 MB of query output against 132 MB for the same 78,690 rows on a 3.4 GB store. (#3556)
-- `deja index` no longer stalls on a store holding long tool output. Rows from a SQLite-backed harness are built by `json_object` rather than by the sqlite3 shell's `-json` mode, which is quadratic in the characters it escapes: 4 MB of quote-heavy text took it 412s against 0.04s, and a 520 MB opencode store took over ten minutes where it now takes three seconds. (#3553)
 
 ### Changed
 - `deja doctor --json` carries the auto-recall rows, not only the MCP ones: a script could see a missing sqlite3 and not a hook running a binary that is gone. (#3540)
@@ -31,6 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The freshness walk no longer runs to be discarded: `deja index` walked every store a second time whenever it had already reported what it did, 52 ms on a 2.0 GB store. (#3501)
 
 ### Fixed
+- A mistyped command exits non-zero. `deja unforget x` printed the command that does exist and exited 0, so a script that ran it and checked the code was told the work had been done; a search that simply found nothing still exits 0. (#3567)
+- `deja doctor` calls an antigravity store missing when its root is not on disk. The env override was handed back as given, so a variable pointing at a directory that is gone read as a store that is there. (#3568)
+- `blame` tells an agent that a file has no history instead of answering `[]`. It is the tool called before an edit, and an empty array reads as a tool that failed; the note names the file and how many sessions were searched. (#3570)
+- A password handed to a program as a long flag is redacted at the length people actually choose: `mysql --password=MyRootPass2026` and `app --password=Pass2026Short` reached `deja show` and `deja share` in the clear, because the key-value floor of sixteen characters applied to a flag that says what its value is. Index format version 42 masks the ones already on disk. (#3572)
+- A search that lands while the first index build is running says one thing rather than two that contradict each other: there is no index to answer from yet, so it no longer claims to be serving one. (#3574)
+- `deja install` refuses a TOML config that is already broken instead of splicing its block in: the JSON targets have always refused one, and an entry in a file the harness cannot load turns a missing bracket into deja's error message. (#3576)
+- The last slice of `deja show` says it is the end of the session instead of offering a next slice that is past it. (#3578)
+- `fix` no longer tells an agent that its error is not an error. The pair-mining heuristic was used on the caller and refused ten of twenty error lines a tool actually prints — `connection refused`, `permission denied`, `Exit code 137` among them — while the CLI took all twenty; the advice about pasting the output now rides along with the honest answer instead of replacing it. (#3580)
+- A sync waits for the peer list's lock instead of writing over it after two seconds. On a box slow enough for sixteen writers not to drain in that time, two machines were dropped from the list — the lost update the lock exists to prevent. A lock left by a dead process is still taken over after thirty seconds. (#3558)
+- A full rebuild keeps the sessions whose transcripts the client deleted. Claude Code cleans up after 30 days and the incremental pass held them, but a rebuild — what an index-version bump, a changed exclude list and a damaged index all run — wrote the store from the sources alone: 6 of 8 sessions gone on a measured store. `deja forget` still drops one for good. (#3529)
+- The first question after an upgrade is answered from the index that is there while the sources are re-read behind it, the way a stale index is already handled. A content-version bump made it wait for the whole pass — 13m54s on a 520 MB store, where the agent that asked gave up after a minute. A layout this build cannot read, and text written before the redaction that masks it, still rebuild first. (#3552)
+- The opencode reader tests the compaction flag by type instead of reading the value behind it: current opencode keeps an object of file diffs under the same key, which came to 247 MB of query output against 132 MB for the same 78,690 rows on a 3.4 GB store. (#3556)
+- `deja index` no longer stalls on a store holding long tool output. Rows from a SQLite-backed harness are built by `json_object` rather than by the sqlite3 shell's `-json` mode, which is quadratic in the characters it escapes: 4 MB of quote-heavy text took it 412s against 0.04s, and a 520 MB opencode store took over ten minutes where it now takes three seconds. (#3553)
 - A renamed transcript is not indexed again. Twenty renames of one 4 KB log left twenty-one copies in `records.bin` and twenty rows pointing at paths that were gone; search answered once, so nothing on any screen said the store was twenty times its content. (#3546)
 - `deja log` says when a compaction capture stored nothing and why. The journal had recorded the reason since the capture was written; the screen printed the same line for a packet that was kept and one that never happened. (#3531)
 - A bad numeric MCP argument names the number rather than the argument object: `{"limit":"five"}` answered "arguments must be an object", which is the half of the call that was right. (#3533)
@@ -41,7 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - VS Code Copilot Chat: an edited file's URI is percent-decoded, and the older snapshot shape no longer fails to parse — a path with a space landed in the files record encoded, and a v1 working set dropped the record entirely. (#3498)
 - `deja doctor` names a hook binary that is gone under every row state, not only a healthy one, and a bare `deja` says it once a day: after a package upgrade every entry points at the old path and the hooks exit 127. (#3510, #3511)
 - Zed: the extension cannot reach an installed deja from inside the wasm sandbox, so the install instructions say to name it with the `binary` setting instead of promising it is found. (#3513)
-
 ## [0.20.0] - 2026-09-12
 
 The release where every line deja gives an agent was read off a real store
