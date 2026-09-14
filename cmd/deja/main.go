@@ -728,6 +728,13 @@ func showWindowNote(offset, returned, total int) string {
 	}
 	first := offset + 1
 	last := offset + returned
+	if last >= total {
+		// The last slice has no next one, and pointing at the offset after it
+		// sent the reader to "--offset 16 is past the end — the session has 16
+		// messages", which is deja answering its own advice (#3578).
+		return fmt.Sprintf("deja: showing message%s %d-%d of %d — the end of the session",
+			pluralS(returned), first, last, total)
+	}
 	return fmt.Sprintf("deja: showing message%s %d-%d of %d — `--offset %d` reads the next slice",
 		pluralS(returned), first, last, total, last)
 }
