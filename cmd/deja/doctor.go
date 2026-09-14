@@ -1103,7 +1103,7 @@ func doctorPolicy(w io.Writer, dir string) {
 		fmt.Fprintf(w, "  %-12s %s — every origin activates everywhere\n", "default", noPolicyFileLine())
 		// Except one thing, which is in force with or without a file and is
 		// the reason a directory can be missing from recall (#2050).
-		printIgnored(w, policy.Load())
+		printIgnored(w, policy.Load(), dir)
 		return
 	}
 	if err != nil {
@@ -1125,7 +1125,7 @@ func doctorPolicy(w io.Writer, dir string) {
 		}
 		fmt.Fprintf(w, "  %-12s %s\n", activation, line)
 	}
-	printIgnored(w, pol)
+	printIgnored(w, pol, dir)
 	for _, u := range unknown {
 		fmt.Fprintf(w, "  %-12s %q is not an activation or origin deja consults — this rule does nothing\n", "ignored", u)
 	}
@@ -1897,7 +1897,13 @@ func doctorFilePresent(path string) bool {
 // silently drops history is indistinguishable from history that was never
 // there, so it is printed whether it came from the policy file or from the
 // built-in default (#2050).
-func printIgnored(w io.Writer, pol policy.Policy) {
+//
+// And what it costs, the way the activation rows say what they withhold: the
+// rule's text is not its effect. A rule is matched against the project name
+// and the transcript's own path, so the natural thing to write — the
+// directory's absolute path — matches neither, and the row above reported it
+// as in force while it hid nothing (#3584).
+func printIgnored(w io.Writer, pol policy.Policy, dir string) {
 	pats := pol.IgnorePatterns()
 	if len(pats) == 0 {
 		return
@@ -1907,6 +1913,29 @@ func printIgnored(w io.Writer, pol policy.Policy) {
 		what = "from the file"
 	}
 	fmt.Fprintf(w, "  %-12s %s (%s)\n", "not recalled", strings.Join(pats, ", "), what)
+	// Only for a rule somebody wrote. The default is deja's own and a machine
+	// that has never met an agent runtime is not being told about it.
+	if len(pol.Ignore) == 0 {
+		return
+	}
+	metas, err := index.AllMeta(dir)
+	if err != nil || len(metas) == 0 {
+		return
+	}
+	for _, pat := range pol.Ignore {
+		one := policy.Policy{Ignore: []string{pat}}
+		n := 0
+		for _, m := range metas {
+			if one.Ignored(m.Path, m.Project) {
+				n++
+			}
+		}
+		if n == 0 {
+			fmt.Fprintf(w, "  %-12s %q matches no indexed session — a rule is matched against the project name and the transcript's path, not the directory you ran in\n", "", pat)
+			continue
+		}
+		fmt.Fprintf(w, "  %-12s %q hides %d of %d indexed session%s\n", "", pat, n, len(metas), pluralS(len(metas)))
+	}
 }
 
 // noPolicyFileLine says where the policy would be, or that there is nowhere
