@@ -166,6 +166,11 @@ func runInstall(dir string, args []string, uninstall bool) error {
 	// the end (#902).
 	var refused []string
 	var refusedErrs []error
+	// How many targets were actually written. A target nobody has heard of used
+	// to still leave the CLI skill behind: `deja install frobnicate` refused the
+	// target, exited 1, and wrote `~/.agents/skills/deja-search/SKILL.md` on the
+	// way (#3583).
+	written := 0
 	note := func(t string, err error) {
 		refused = append(refused, fmt.Sprintf("%s: %v", t, err))
 		refusedErrs = append(refusedErrs, err)
@@ -214,6 +219,7 @@ func runInstall(dir string, args []string, uninstall bool) error {
 				pruneGuidanceDirs(cr.Path)
 			}
 		}
+		written++
 		touchedPaths = append(touchedPaths, r.touched()...)
 		if banner {
 			done = append(done, lineItem{t, r.Action, shortHome(r.Path), r.Note})
@@ -244,7 +250,7 @@ func runInstall(dir string, args []string, uninstall bool) error {
 	if guidance {
 		var err error
 		switch {
-		case !uninstall:
+		case !uninstall && written > 0:
 			var action string
 			action, err = writeCLISkill()
 			// Every -auto target wrote this file and not one of them said so:
