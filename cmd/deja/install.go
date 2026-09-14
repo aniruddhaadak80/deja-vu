@@ -2010,6 +2010,29 @@ func installGrok(exe string, uninstall bool) (installResult, error) {
 	return wroteAll(res, user), nil
 }
 
+// tomlHeadersClose is the smallest check worth making on a TOML file deja is
+// about to edit: every table header opens and closes on its own line. deja
+// ships no TOML parser — it splices text so a hand-written file keeps its
+// comments and its order — and a full parse is not needed to catch what
+// actually breaks. `[mcp_servers.theirs` with the bracket missing is the shape
+// a hand-edit leaves, and the one this refuses.
+func tomlHeadersClose(text string) error {
+	for i, line := range strings.Split(text, "\n") {
+		t := strings.TrimSpace(line)
+		if !strings.HasPrefix(t, "[") {
+			continue
+		}
+		// A header may carry a trailing comment: [a.b]  # why.
+		if at := strings.Index(t, "#"); at >= 0 {
+			t = strings.TrimSpace(t[:at])
+		}
+		if !strings.HasSuffix(t, "]") {
+			return fmt.Errorf("line %d is a table header that never closes: %s", i+1, strings.TrimSpace(line))
+		}
+	}
+	return nil
+}
+
 type tomlMCPBlock struct {
 	key        string
 	start, end int
@@ -2021,6 +2044,13 @@ func installTOML(path, block string, uninstall bool) (installResult, error) {
 		return installResult{}, err
 	}
 	text := lfText(old)
+	// A file somebody has already broken by hand. The JSON targets refuse one
+	// and say where; this path spliced its block in regardless, so deja's entry
+	// landed in a file the harness cannot load and the harness's own error
+	// named deja's lines (#3576).
+	if err := tomlHeadersClose(text); err != nil {
+		return installResult{}, configParseError(path, err)
+	}
 	blocks := tomlMCPBlocks(text)
 	hasDeja := false
 	for _, b := range blocks {

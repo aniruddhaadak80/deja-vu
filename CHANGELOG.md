@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `blame` tells an agent that a file has no history instead of answering `[]`. It is the tool called before an edit, and an empty array reads as a tool that failed; the note names the file and how many sessions were searched. (#3570)
 - A password handed to a program as a long flag is redacted at the length people actually choose: `mysql --password=MyRootPass2026` and `app --password=Pass2026Short` reached `deja show` and `deja share` in the clear, because the key-value floor of sixteen characters applied to a flag that says what its value is. Index format version 42 masks the ones already on disk. (#3572)
 - A search that lands while the first index build is running says one thing rather than two that contradict each other: there is no index to answer from yet, so it no longer claims to be serving one. (#3574)
+- `deja install` refuses a TOML config that is already broken instead of splicing its block in: the JSON targets have always refused one, and an entry in a file the harness cannot load turns a missing bracket into deja's error message. (#3576)
 - A sync waits for the peer list's lock instead of writing over it after two seconds. On a box slow enough for sixteen writers not to drain in that time, two machines were dropped from the list — the lost update the lock exists to prevent. A lock left by a dead process is still taken over after thirty seconds. (#3558)
 
 ### Added
