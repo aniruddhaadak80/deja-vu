@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- A sync waits for the peer list's lock instead of writing over it after two seconds. On a box slow enough for sixteen writers not to drain in that time, two machines were dropped from the list — the lost update the lock exists to prevent. A lock left by a dead process is still taken over after thirty seconds. (#3558)
+
 ### Added
 - `deja bench read`: what it costs to read a database-backed store, and what one long escape-heavy value does to it. Every other benchmark runs against an already-indexed corpus, which is how a reader that took 2,287s on a 6.16 MB value stayed invisible while all of them held flat. (#3552)
 - A store that is slow to read says which one it is and that it is still moving, every thirty seconds, and its read time lands on its line. A pass over a 520 MB store gave thirteen minutes of one static line and no way to tell a slow read from a stuck one; the slowest store on a 3.4 GB corpus reads in 10s, so nothing says anything on an ordinary run. (#3555)
