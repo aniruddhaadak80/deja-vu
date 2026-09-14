@@ -10,9 +10,9 @@ import (
 	"github.com/vshulcz/deja-vu/internal/index"
 )
 
-// An index written by an older format is unreadable to this binary — the hook
-// paths refuse it and ask for a rebuild, which is why memory goes quiet after
-// an upgrade. doctor called that "up to date" (#877).
+// An index written by a layout this binary cannot read is unreadable to it —
+// the hook paths refuse it and ask for a rebuild, which is why memory goes
+// quiet after an upgrade. doctor called that "up to date" (#877).
 func TestDoctorNamesAnIndexFromAnOlderFormat(t *testing.T) {
 	tmp := hermeticEnv(t)
 	chats := filepath.Join(tmp, "qwen", "projects", "proj", "chats")
@@ -37,9 +37,9 @@ func TestDoctorNamesAnIndexFromAnOlderFormat(t *testing.T) {
 	}
 
 	// An index this build cannot read.
-	saved := indexFormatDirection
-	indexFormatDirection = func(string) int { return -1 }
-	t.Cleanup(func() { indexFormatDirection = saved })
+	saved := indexReadState
+	indexReadState = func(string) index.ReadState { return index.ReadStateUnreadable }
+	t.Cleanup(func() { indexReadState = saved })
 	out.Reset()
 	doctorIndex(&out, doctorIndexReport{State: "ok", Path: dir}, dir)
 	got := out.String()
@@ -51,16 +51,19 @@ func TestDoctorNamesAnIndexFromAnOlderFormat(t *testing.T) {
 	}
 }
 
-// The direction matters: an index from a newer deja means the binary was
-// rolled back, and calling it old sends that reader the wrong way (#890).
-func TestDoctorTellsAnOldIndexFromANewOne(t *testing.T) {
+// Four states, four sentences. The direction matters — an index from a newer
+// deja means the binary was rolled back, and calling it old sends that reader
+// the wrong way (#890) — and so does what the build may do with it: a store one
+// content version behind reads and answers, and "cannot read it" told someone
+// looking for why nothing is recalled that their index was gone (#3597).
+func TestDoctorTellsWhatItMayDoWithTheIndex(t *testing.T) {
 	hermeticEnv(t)
 	dir := t.TempDir()
-	saved := indexFormatDirection
-	t.Cleanup(func() { indexFormatDirection = saved })
+	saved := indexReadState
+	t.Cleanup(func() { indexReadState = saved })
 
-	line := func(direction int) string {
-		indexFormatDirection = func(string) int { return direction }
+	line := func(state index.ReadState) string {
+		indexReadState = func(string) index.ReadState { return state }
 		var out bytes.Buffer
 		doctorIndex(&out, doctorIndexReport{State: "ok", Path: dir}, dir)
 		for _, l := range strings.Split(out.String(), "\n") {
@@ -71,17 +74,39 @@ func TestDoctorTellsAnOldIndexFromANewOne(t *testing.T) {
 		return ""
 	}
 
-	if got := line(-1); !strings.Contains(got, "written by an older deja") {
-		t.Errorf("older index: %q", got)
+	if got := line(index.ReadStateUnreadable); !strings.Contains(got, "cannot read it") {
+		t.Errorf("unreadable index: %q", got)
 	}
-	got := line(1)
+
+	// Readable and answering. The row must not claim otherwise, and must not
+	// leave the reader thinking nothing is pending either.
+	got := line(index.ReadStateOlderRules)
+	if strings.Contains(got, "cannot read") {
+		t.Errorf("an index that answers was called unreadable: %q", got)
+	}
+	if !strings.Contains(got, "still answers") || !strings.Contains(got, "re-read") {
+		t.Errorf("an older-rules index does not say what is pending: %q", got)
+	}
+
+	// Readable, but withholding until the re-read — the one state of the three
+	// that does stop recall, and it is not the same sentence as unreadable.
+	got = line(index.ReadStateWithheld)
+	if strings.Contains(got, "cannot read") || strings.Contains(got, "still answers") {
+		t.Errorf("a withheld index borrowed another state's sentence: %q", got)
+	}
+	if !strings.Contains(got, "mask") {
+		t.Errorf("a withheld index does not say why it is quiet: %q", got)
+	}
+
+	got = line(index.ReadStateNewer)
 	if !strings.Contains(got, "written by a newer deja") {
 		t.Errorf("newer index: %q", got)
 	}
 	if strings.Contains(got, "older") {
 		t.Errorf("a rolled-back binary was told its index is old: %q", got)
 	}
-	if got := line(0); got != "" {
+
+	if got := line(index.ReadStateCurrent); got != "" {
 		t.Errorf("a matching format still printed: %q", got)
 	}
 }

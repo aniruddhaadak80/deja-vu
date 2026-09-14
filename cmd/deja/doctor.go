@@ -1579,6 +1579,11 @@ func doctorTOMLDejaKeys(path string) []string {
 // index this build cannot read without shipping a manifest writer.
 var indexFormatDirection = index.FormatDirection
 
+// indexReadState is a variable for the same reason, and it is the one the row
+// below asks: how old the index is and what this build may do with it are
+// different questions (#3597).
+var indexReadState = index.ReadStateOf
+
 func doctorIndex(w io.Writer, idx doctorIndexReport, dir string) {
 	fmt.Fprintln(w, "Index:")
 	loc := idx.Path
@@ -1654,10 +1659,21 @@ func doctorIndex(w io.Writer, idx doctorIndexReport, dir string) {
 	// hook paths refuse it and ask for a rebuild, which is why memory goes
 	// quiet after an upgrade. doctor called that "up to date" — the one
 	// command someone runs to find out why nothing is recalled (#877).
-	switch indexFormatDirection(dir) {
-	case -1:
+	switch indexReadState(dir) {
+	case index.ReadStateUnreadable:
 		fmt.Fprintln(w, "  format   written by an older deja — this build cannot read it; the next session rebuilds it, or run `deja index` now")
-	case 1:
+	case index.ReadStateWithheld:
+		// It reads. What it holds is text written before deja knew how to
+		// redact something, so it answers nothing until the re-read is done —
+		// which is a different sentence from "cannot read", and the only one of
+		// the three that stops recall.
+		fmt.Fprintln(w, "  format   written before deja learned to mask something it now masks — it answers once the sources are re-read; `deja index` does it now")
+	case index.ReadStateOlderRules:
+		// And the common upgrade: the store reads, answers, and re-derives
+		// behind the answer. Calling that unreadable told someone looking for
+		// why nothing is recalled that their index was gone (#3597, #3562).
+		fmt.Fprintln(w, "  format   written by an older deja — it still answers; the next session re-reads the sources, or run `deja index` now")
+	case index.ReadStateNewer:
 		// The binary was rolled back, not the index. Saying "older" here sent
 		// that reader looking in the wrong direction (#890).
 		fmt.Fprintln(w, "  format   written by a newer deja than this one — this build rebuilds it in its own format; upgrading again rebuilds it back")
