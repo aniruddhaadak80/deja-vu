@@ -1214,6 +1214,19 @@ func stampedAheadCount(ss []model.Session, now time.Time) int {
 	return n
 }
 
+// stampedAheadHits counts the same thing over a result set rather than a
+// listing. Search ranks on recency among other things, so the sessions whose
+// stamp cannot place them are the ones it places first.
+func stampedAheadHits(hits []search.Hit, now time.Time) int {
+	n := 0
+	for _, h := range hits {
+		if index.StampedAhead(h.Session.Updated, now) {
+			n++
+		}
+	}
+	return n
+}
+
 // pluralThatThose keeps the sentence above readable for one session and for
 // several, the way pluralThem does for the ingest lines.
 func pluralThatThose(n int) string {
@@ -1481,6 +1494,15 @@ func searchWithOptions(dir string, args []string, sourceInstance string, bare bo
 	counted := &countingWriter{w: os.Stdout}
 	search.Print(counted, hits, o)
 	usage.RecordResult(dir, usage.KindSearch, counted.n, len(hits), len(hits) == 0)
+	// A stamp that has not happened is a date the reader cannot use, and recency
+	// is half of what puts a hit where it is. The listing has said so since
+	// #2104, the brief and doctor count them, recall marks the one it quotes —
+	// search was the surface that printed "Jan 1 2099" beside an answer and left
+	// the reader to work out what it meant (#3595).
+	if n := stampedAheadHits(hits, time.Now()); n > 0 {
+		fmt.Fprintf(os.Stderr, "deja: %d session%s here stamped later than this machine's clock — a stamp that has not happened cannot be placed against the others\n",
+			n, pluralS(n))
+	}
 	// A wrong guess at a command name falls through to search, and the hint
 	// that names it ran only on an empty result — so a typo whose word happens
 	// to be in the history got a conversation back and nothing about the
