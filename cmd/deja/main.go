@@ -1234,7 +1234,14 @@ func ensureForCLISearch(dir string, o search.Options, force bool, progress io.Wr
 	}
 	if stale {
 		requestWarmup(dir)
-		fmt.Fprintln(progress, "deja: answering from the index as it was — refreshing in the background")
+		// Only when there is an index to answer from. On a first build there is
+		// not, and the two lines contradicted each other on the worst run to
+		// contradict anything — a new machine's first search said "answering
+		// from the index as it was" and then "the index is being rebuilt right
+		// now, run this again in a moment" (#3574).
+		if index.ReadableSnapshot(dir) {
+			fmt.Fprintln(progress, "deja: answering from the index as it was — refreshing in the background")
+		}
 	}
 	return nil
 }
