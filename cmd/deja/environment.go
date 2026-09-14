@@ -98,6 +98,10 @@ func environmentBlock(dir, activation string) string {
 	return text
 }
 
+// environmentReadState is a variable so a test can put the block in front of a
+// store below the redaction floor without writing a manifest by hand.
+var environmentReadState = index.ReadStateOf
+
 // environmentBlockFrom also reports the projects whose sessions the walls came
 // from. The block is about the machine and names none of them in its text, so a
 // record without them could not be reached when one of those projects was
@@ -109,6 +113,18 @@ func environmentBlockFrom(dir, activation string) (string, []string) {
 	// recall tool (#2701). Ahead of the manifest scan, which the comment at
 	// the hook's call site calls ten times the cost of the rest of the hook.
 	if recallIsOff() {
+		return "", nil
+	}
+	// And the other reason a store must not be quoted: text written before deja
+	// knew how to mask something it now masks. Recall is gated on that already
+	// — the hook says "indexing your history, recall comes online when it
+	// finishes" in the same breath — but this block reads the friction sidecar
+	// rather than the records, so it went around the gate and put a wall from
+	// the old store straight into the model's context, secret and all. Every
+	// other surface is safe because it runs index.Ensure first; the hook cannot
+	// (#3598).
+	switch environmentReadState(dir) {
+	case index.ReadStateWithheld, index.ReadStateUnreadable:
 		return "", nil
 	}
 	// Origin is a property of the sessions the walls came from, so the gate has
