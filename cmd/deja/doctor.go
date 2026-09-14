@@ -833,8 +833,13 @@ func doctorHarnesses(w io.Writer, dir string) {
 
 	printRow("cursor", doctorCursorLocation(), doctorCursorPresent(), doctorCursorDetail(sqlite))
 
+	// Present means a store that is there, not a path deja was told about:
+	// AntigravityRoots hands back DEJA_ANTIGRAVITY_ROOT as given, so a machine
+	// with the variable set to a directory that does not exist — a typo, a
+	// removed install — read as `found` with nothing in it, which is the shape
+	// every other row reports as `missing`.
 	agyRoots := sources.AntigravityRoots()
-	printFilesBesideIn("antigravity", doctorAntigravityLocation(), agyRoots, true, len(agyRoots) > 0,
+	printFilesBesideIn("antigravity", doctorAntigravityLocation(), agyRoots, true, doctorAnyExists(agyRoots),
 		sources.AntigravityTranscripts(), sources.AntigravitySidecarFiles()...)
 
 	// The store root also holds Grok's settings, credentials and caches, which
@@ -1871,6 +1876,16 @@ func doctorCount(n int, noun string) string {
 func doctorExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// doctorAnyExists reports whether at least one of the paths is on disk.
+func doctorAnyExists(paths []string) bool {
+	for _, p := range paths {
+		if doctorExists(p) {
+			return true
+		}
+	}
+	return false
 }
 
 func doctorFilePresent(path string) bool {
