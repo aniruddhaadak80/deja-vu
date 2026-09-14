@@ -127,7 +127,42 @@ var (
 	// full of `--session <id>`, and redacting those would cost the recall they
 	// exist for. The header is what makes this one unambiguous.
 	cookieRE = regexp.MustCompile(`(?i)\b(?:set-)?cookie:[ \t]*([^\n]{8,400})`)
+	// A password named as one, at the length people actually choose. The
+	// key-value patterns above take any value of sixteen characters or more,
+	// which is right for `token = …` where a short value is as likely to be a
+	// word — and wrong here, because the key says what the value is. Measured
+	// through an index pass: `mysql --password=MyRootPass2026` (fourteen) and
+	// `app --password=Pass2026Short` (thirteen) reached `deja show` and `deja
+	// share` in the clear, while the same line with a nineteen-character value
+	// was redacted (#3572).
+	//
+	// Only the flag form. `password: hunter2` stays a near miss on purpose —
+	// the bare word opens more prose than credentials, and a floor low enough
+	// to catch a short one there would redact sentences (escaped_json_test).
+	// Nobody writes `--password` in prose: the flag is machine input, and what
+	// follows it is the value whatever its length.
+	passwordFlagRE = regexp.MustCompile(`(?i)(^|\s)(--?(?:password|passwd|pwd))([ =]\\*['"]?)([^\s'"]{3,128})`)
 )
+
+// notASecretValue reports whether what follows a password key is plainly not a
+// password: a placeholder, a variable the shell will expand, or a word that
+// says there is none. Redacting those costs the reader the sentence and hides
+// nothing — `password: null` is a fact about a config, not a credential.
+func notASecretValue(v string) bool {
+	v = strings.Trim(v, `"'`)
+	if v == "" {
+		return true
+	}
+	switch v[0] {
+	case '$', '<', '%', '{', '*':
+		return true
+	}
+	switch strings.ToLower(v) {
+	case "true", "false", "null", "none", "nil", "empty", "unset", "changeme", "password", "redacted":
+		return true
+	}
+	return strings.HasPrefix(v, "[redacted")
+}
 
 func Disabled() bool { return os.Getenv("DEJA_NO_REDACT") == "1" }
 
@@ -303,6 +338,14 @@ func Text(s string) (string, Counts) {
 	if strings.ContainsAny(s, ":=") && containsAnyFold(s, kvIntlHints) {
 		s = replaceSubmatch(s, genericKVIntlFillerRE, "credential", counts, func(m []string) string {
 			return m[1] + m[2] + m[3] + "[redacted:credential]" + closingQuote(m[3], m[5])
+		})
+	}
+	// Its own gate rather than the key-value one: that gate asks for a
+	// delimiter near a key word, and the flag form has neither a colon nor an
+	// equals sign when it is written `--password secret`.
+	if strings.Contains(lower, "passw") || strings.Contains(lower, "pwd") {
+		s = replaceGroup(s, passwordFlagRE, 4, "credential", counts, func(m []string) bool {
+			return notASecretValue(m[4])
 		})
 	}
 	if strings.Contains(lower, "sshpass") {
