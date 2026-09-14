@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A mistyped command exits non-zero. `deja unforget x` printed the command that does exist and exited 0, so a script that ran it and checked the code was told the work had been done; a search that simply found nothing still exits 0. (#3567)
 - `deja doctor` calls an antigravity store missing when its root is not on disk. The env override was handed back as given, so a variable pointing at a directory that is gone read as a store that is there. (#3568)
 - `blame` tells an agent that a file has no history instead of answering `[]`. It is the tool called before an edit, and an empty array reads as a tool that failed; the note names the file and how many sessions were searched. (#3570)
+- A password handed to a program as a long flag is redacted at the length people actually choose: `mysql --password=MyRootPass2026` and `app --password=Pass2026Short` reached `deja show` and `deja share` in the clear, because the key-value floor of sixteen characters applied to a flag that says what its value is. Index format version 42 masks the ones already on disk. (#3572)
 - A sync waits for the peer list's lock instead of writing over it after two seconds. On a box slow enough for sixteen writers not to drain in that time, two machines were dropped from the list — the lost update the lock exists to prevent. A lock left by a dead process is still taken over after thirty seconds. (#3558)
 
 ### Added
