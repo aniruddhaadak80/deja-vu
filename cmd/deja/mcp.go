@@ -693,8 +693,16 @@ func mcpFix(dir, name string, raw json.RawMessage) (string, int, error) {
 		return pol.Allows(policy.ActivationMCP, project)
 	})
 	if len(pairs) == 0 {
+		// What the heuristic is for is mining pairs out of a transcript, where
+		// a false positive costs a bad pair. Used on the caller it accuses the
+		// agent of passing the wrong thing: measured against twenty error lines
+		// a tool actually prints, it refused ten — `connection refused`,
+		// `permission denied`, `segmentation fault`, `OOMKilled`, `Exit code
+		// 137` among them — and the CLI took all twenty (#3580). So the
+		// guidance stays and the accusation goes: the sentence says what is
+		// true either way, and what to do if it really was a summary.
 		if !index.LooksLikeError(a.Error) {
-			return "That text does not read like an error line - pass the failing output itself.", 0, nil
+			return "No session on this machine ran a command after that error. If that was a summary rather than the failing output, pass the output itself." + emptyStoreNote(dir), 0, nil
 		}
 		// Held-but-unconfirmed is not never-seen, and the agent asking is
 		// the one that would otherwise re-derive the remedy (#2282).
