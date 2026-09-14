@@ -87,6 +87,13 @@ type doctorIndexReport struct {
 	// note's ts (#2063), or a store whose stamps were read in the wrong unit
 	// (#2102). doctor has named the same fact for a peer since #1855.
 	SessionsAhead int `json:"sessions_stamped_ahead"`
+	// Format is how the store on disk relates to this build, when it is not
+	// what this build writes. The text screen has carried a `format` row for
+	// this since #877 and the JSON carried nothing, so a script watching index
+	// health read "ok" on a store whose recall was off — the same miss #2292
+	// closed for damage (#3600). Omitted when the store is current, which is
+	// every ordinary run.
+	Format string `json:"format,omitempty"`
 }
 
 type doctorVersionReport struct {
@@ -731,6 +738,22 @@ func inspectDoctorIndex(dir string, storeMods []time.Time) doctorIndexReport {
 	if index.Damaged(dir) {
 		result.State = "damaged"
 		return result
+	}
+	// And the format, on the same terms. Two of the four states answer nothing
+	// until the sources are re-read, which is not staleness either: `deja
+	// index` is the fix for both, but a stale store still recalls while these
+	// do not, and that is the distinction a health check is looking for.
+	switch indexReadState(dir) {
+	case index.ReadStateUnreadable:
+		result.Format, result.State = "unreadable", "rereading"
+		return result
+	case index.ReadStateWithheld:
+		result.Format, result.State = "withheld", "rereading"
+		return result
+	case index.ReadStateOlderRules:
+		result.Format = "older-rules"
+	case index.ReadStateNewer:
+		result.Format = "newer"
 	}
 	if result.StaleStores > 0 {
 		result.State = "stale"
