@@ -147,9 +147,16 @@ var (
 	// Only the flag form. `password: hunter2` stays a near miss on purpose —
 	// the bare word opens more prose than credentials, and a floor low enough
 	// to catch a short one there would redact sentences (escaped_json_test).
-	// Nobody writes `--password` in prose: the flag is machine input, and what
-	// follows it is the value whatever its length.
-	passwordFlagRE = regexp.MustCompile(`(?i)(^|\s)(--?(?:password|passwd|pwd))([ =]\\*['"]?)([^\s'"]{3,128})`)
+	//
+	// The names beyond `password` are the ones a transcript hands a real secret
+	// to: `gpg --passphrase`, `borg --passphrase`, and the `--secret`,
+	// `--token` and `--api-key` every CLI with an account behind it takes. They
+	// arrived with the guard below, not before it: `--token` and `--secret` are
+	// ordinary words in a sentence about a flag, which `--password` is not, and
+	// widening the list without the guard would turn a rare wrong mask into a
+	// common one (#3596). Single-letter flags stay out — `-p` is a port as
+	// often as a password, and telling them apart needs the command.
+	passwordFlagRE = regexp.MustCompile(`(?i)(^|\s)(--?(?:password|passwd|pwd|passphrase|secret|token|api[_-]?key|auth[_-]?token|access[_-]?token|client[_-]?secret))([ =]\\*['"]?)([^\s'"]{3,128})`)
 	// A password assigned with `=`, at the length people actually choose. The
 	// key-value floor of sixteen characters is right where the key word could
 	// be describing anything — `token`, `secret`, `key` — and wrong for this
@@ -235,6 +242,53 @@ func notASecretValue(v string) bool {
 		return true
 	}
 	return strings.HasPrefix(v, "[redacted")
+}
+
+// flagHintNearby is the cheap necessary condition for passwordFlagRE: one of
+// the flag names, with the dash that makes it a flag. Every alternative in the
+// pattern begins with one of these once the leading dash is counted, so a text
+// that holds none of them cannot match.
+func flagHintNearby(lower string) bool {
+	for _, hint := range flagHints {
+		if strings.Contains(lower, hint) {
+			return true
+		}
+	}
+	return false
+}
+
+var flagHints = []string{"-passw", "-pwd", "-passphrase", "-secret", "-token", "-api", "-auth", "-access", "-client"}
+
+// proseWordAfterFlag reports whether what follows `--flag ` is a word rather
+// than a value. Only the space-separated form asks: `--password=X` is a shell
+// assignment and X is the value whatever it looks like, while `run with
+// --password from the keychain` is a sentence, and it lost "from" to the
+// redactor (#3596).
+//
+// A word here is all lowercase ASCII letters and hyphens, no longer than
+// twelve characters — which also catches the next flag, `--verbose`. What it
+// costs is a real password of twelve lowercase letters or fewer handed over
+// with a space; that is the same trade `password: hunter2` already makes, and
+// nothing shorter than a word can be told from one.
+//
+// It does not spare a digit, so `docker service create --secret my-secret-v2`
+// masks a secret's *name*. That is a line of recall lost rather than a secret
+// shown, and the alternative — letting a lowercase value with a digit through —
+// is exactly `hunter2`, which is what this pattern exists to catch.
+func proseWordAfterFlag(sep, v string) bool {
+	if !strings.Contains(sep, " ") {
+		return false
+	}
+	v = strings.Trim(v, `"'`)
+	if len(v) > 12 {
+		return false
+	}
+	for _, r := range v {
+		if (r < 'a' || r > 'z') && r != '-' {
+			return false
+		}
+	}
+	return v != ""
 }
 
 func Disabled() bool { return os.Getenv("DEJA_NO_REDACT") == "1" }
@@ -416,10 +470,20 @@ func Text(s string) (string, Counts) {
 	// Its own gate rather than the key-value one: that gate asks for a
 	// delimiter near a key word, and the flag form has neither a colon nor an
 	// equals sign when it is written `--password secret`.
-	if strings.Contains(lower, "passw") || strings.Contains(lower, "pwd") {
+	//
+	// The dash is part of every hint. "token" and "secret" on their own are
+	// ordinary words and the gate would pass on most messages, which is the
+	// cost kvAssignmentNearby was written to avoid; the pattern cannot match
+	// without a dash before the name, so "-token" is both necessary and rare.
+	if flagHintNearby(lower) {
 		s = replaceGroup(s, passwordFlagRE, 4, "credential", counts, func(m []string) bool {
-			return notASecretValue(m[4])
+			return notASecretValue(m[4]) || proseWordAfterFlag(m[3], m[4])
 		})
+	}
+	// A separate gate, and deliberately the older one: `DATABASE_PASSWORD=x`
+	// has no dash anywhere, so the flag gate above would have silently switched
+	// this pattern off.
+	if strings.Contains(lower, "passw") || strings.Contains(lower, "pwd") {
 		s = replaceGroup(s, passwordAssignRE, 4, "credential", counts, func(m []string) bool {
 			return notASecretValue(m[4])
 		})

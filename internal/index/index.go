@@ -233,7 +233,12 @@ import (
 // words to those languages and left the value class where it was. Same reason
 // as 41 and 42 — redaction runs at ingest (#3587), and the password assigned
 // with an equals sign at any length (#3588).
-const version = 43
+//
+// 44 masks a secret handed to `--passphrase`, `--secret`, `--token` or
+// `--api-key`. 42 covered `--password` alone, so `gpg --passphrase …` and every
+// CLI flag that names an account credential went through in the clear. Same
+// reason as the three before it — redaction runs at ingest (#3596).
+const version = 44
 
 // onDiskFormat is how the store is laid out on disk — the record encoding, the
 // bucket encoding, the manifest's own shape. It moves only when a reader of an

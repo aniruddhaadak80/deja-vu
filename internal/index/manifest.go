@@ -83,6 +83,55 @@ func FormatDirection(dir string) int {
 	return 0
 }
 
+// ReadState is what this build may do with the index on disk, which is not the
+// same question as how old it is. FormatDirection answers the second, and the
+// sentence doctor drove from it was written for the first: a store one content
+// version behind reads and answers, and the row said the build could not read
+// it while `--deep` re-parsed its sessions three lines below (#3597).
+type ReadState int
+
+const (
+	// ReadStateCurrent is an index this build wrote, or one that matches it.
+	ReadStateCurrent ReadState = iota
+	// ReadStateUnreadable is a layout this build cannot read at all.
+	ReadStateUnreadable
+	// ReadStateWithheld reads, but holds text written before deja knew how to
+	// redact something, so it must not be quoted while it is re-read.
+	ReadStateWithheld
+	// ReadStateOlderRules reads and answers. What is pending is a re-derivation
+	// — a role filed better, a title read from a different field — and those
+	// bumps outnumber the redaction ones three to one.
+	ReadStateOlderRules
+	// ReadStateNewer means the binary was rolled back, not the index.
+	ReadStateNewer
+)
+
+// ReadStateOf reports which of those the index in dir is. An unreadable
+// manifest is not one of them — that is damage, and indexDamageReason names it.
+func ReadStateOf(dir string) ReadState {
+	if dir == "" {
+		dir = DefaultDir()
+	}
+	// Cached, like SessionCount: readManifest also decodes sessions.gob, and
+	// the session-start hook asks this on a path where that is the expensive
+	// part. The cache stats the file, so it still sees a rebuild that landed.
+	m, err := readManifestCached(dir)
+	if err != nil {
+		return ReadStateCurrent
+	}
+	switch {
+	case m.Format != onDiskFormat:
+		return ReadStateUnreadable
+	case m.Version > version:
+		return ReadStateNewer
+	case m.Version < redactionFloor:
+		return ReadStateWithheld
+	case m.Version < version:
+		return ReadStateOlderRules
+	}
+	return ReadStateCurrent
+}
+
 // ImportedSessionCounts reports how many of each harness's indexed sessions
 // arrived from another machine. doctor prints files beside sessions, and on a
 // store that has both, more sessions than files reads as a miscount unless the
