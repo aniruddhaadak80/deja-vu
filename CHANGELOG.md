@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `deja forget --session` and `--project` exit non-zero when the selector names nothing. `deja forget --session $ID && echo removed` printed "removed" for a session still on disk under another id — a script reads the exit code, not the wording, and the sibling `--unforget` has refused a miss since #2263. A window is not a name: `--before 30d` on a young store still exits 0. (#3601)
+
 ## [0.20.1] - 2026-09-15
 
 ### Added
