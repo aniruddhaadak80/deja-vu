@@ -853,6 +853,36 @@ func doctorHarnesses(w io.Writer, dir string) {
 	}
 	printRow("kilocode", kiloLoc, kiloTasks > 0 || kiloHasDB, kiloDetail)
 
+	// Four stores whose formats deja already had: two pi descendants and two
+	// flat-transcript clients (#3647).
+	senpiRoot := sources.SenpiRoot()
+	printFiles("senpi", senpiRoot, doctorExists(senpiRoot), sources.SenpiSessionFiles())
+	kimchiRoot := sources.KimchiRoot()
+	printFiles("kimchi", kimchiRoot, doctorExists(kimchiRoot), sources.KimchiSessionFiles())
+	commandRoot := sources.CommandCodeRoot()
+	// The checkpoint stream beside each transcript is named rather than left to
+	// the unread count: it is not a conversation, and "1 not recognised here"
+	// on a store deja reads correctly is the line that sends someone looking
+	// for drift that is not there.
+	printFilesBeside("commandcode", commandRoot, doctorExists(commandRoot),
+		sources.CommandCodeSessionFiles(), sources.CommandCodeCheckpointFiles()...)
+	zcodeRoot := sources.ZCodeRoot()
+	printFiles("zcode", zcodeRoot, doctorExists(zcodeRoot), sources.ZCodeSessionFiles())
+	gjcRoot := sources.GjcRoot()
+	printFiles("gjc", gjcRoot, doctorExists(gjcRoot), sources.GjcSessionFiles())
+
+	// Kiro's two clients write different files under one root, and the row says
+	// which of them answered: a CLI user and an IDE user have nothing in common
+	// but the directory (#3103).
+	kiroCLI := len(sources.KiroCLIFiles())
+	kiroIDE := len(sources.KiroIDEFiles())
+	kiroRoot := sources.KiroRoot()
+	kiroDetail := doctorCount(kiroCLI, "CLI file")
+	if kiroIDE > 0 {
+		kiroDetail += ", " + doctorCount(kiroIDE, "IDE file")
+	}
+	printRow("kiro", kiroRoot, kiroCLI+kiroIDE > 0, kiroDetail)
+
 	// Cherry Studio writes Claude Code transcripts under its own app data, so
 	// the row names the roots it found rather than the app directory (#3644).
 	cherryFiles := len(sources.CherryStudioSessionFiles())
