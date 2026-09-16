@@ -95,7 +95,7 @@ func Registry() []Harness {
 				{
 					Name: "codex",
 					Match: func(p string) bool {
-						return strings.HasSuffix(p, ".jsonl") && strings.Contains(filepath.Base(p), "rollout-") && underAnyCodexRoot(p) && underAnyCodexSessionsRoot(p)
+						return codexRolloutWanted(p) && underAnyCodexRoot(p) && underAnyCodexSessionsRoot(p)
 					},
 					Parse:     fullParse(ParseCodexRollout),
 					ParseFrom: offsetParse(ParseCodexRolloutFromOffset),
@@ -229,13 +229,28 @@ func Registry() []Harness {
 			Kinds: []FileKind{{
 				Name: "goose-jsonl",
 				Match: func(p string) bool {
-					return strings.HasSuffix(p, ".jsonl") && strings.HasPrefix(p, gooseSessionsDir())
+					if !strings.HasSuffix(p, ".jsonl") {
+						return false
+					}
+					for _, dir := range GooseSessionsDirs() {
+						if strings.HasPrefix(p, dir) {
+							return true
+						}
+					}
+					return false
 				},
 				Parse:     fullParse(ParseGooseFile),
 				ParseFrom: offsetParse(ParseGooseFileFromOffset),
 			}, {
-				Name:      "goose-db",
-				Match:     func(p string) bool { return p == GooseDB() },
+				Name: "goose-db",
+				Match: func(p string) bool {
+					for _, db := range GooseDBs() {
+						if p == db {
+							return true
+						}
+					}
+					return false
+				},
 				Parse:     dbParse(ParseGooseDB, ParseGooseDBSince),
 				ParseFrom: dbParseFrom(ParseGooseDB, ParseGooseDBSince),
 			}},
@@ -287,6 +302,38 @@ func Registry() []Harness {
 					return false
 				},
 				Parse: fullParse(ParseClineFile),
+			}},
+		},
+		{
+			// Cherry Studio runs Claude Code sessions from a desktop app and
+			// writes them in Claude's own format, with a snapshot per stream
+			// chunk that the reader collapses (#3644).
+			Name: "cherrystudio", Load: LoadCherryStudio, Files: CherryStudioSessionFiles,
+			Kinds: []FileKind{{
+				Name: "cherrystudio",
+				Match: func(p string) bool {
+					return strings.HasSuffix(p, ".jsonl") && CherryStudioUnderRoot(p)
+				},
+				Parse:     fullParse(ParseCherryStudioFile),
+				ParseFrom: offsetParse(ParseCherryStudioFileFromOffset),
+			}},
+		},
+		{
+			// Kilo Code keeps the extension's task files and the CLI's
+			// OpenCode-schema database; both parsers are already here, so this
+			// entry is paths and a name (#3643).
+			Name: "kilocode", Load: LoadKilo, Files: KiloSessionFiles,
+			Kinds: []FileKind{{
+				Name: "kilocode-task",
+				Match: func(p string) bool {
+					return hasBase(p, "api_conversation_history.json") && kiloUnderTasks(p)
+				},
+				Parse: fullParse(ParseKiloTask),
+			}, {
+				Name:      "kilocode-db",
+				Match:     func(p string) bool { return p == KiloDB() },
+				Parse:     dbParse(ParseKiloDB, ParseKiloDBSince),
+				ParseFrom: dbParseFrom(ParseKiloDB, ParseKiloDBSince),
 			}},
 		},
 		{

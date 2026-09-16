@@ -153,9 +153,13 @@
       "id": "codex",
       "store_paths": [
         "${CODEX_HOME:-~/.codex}/sessions/**/rollout-*.jsonl",
+        "${CODEX_HOME:-~/.codex}/sessions/**/rollout-*.jsonl.zst",
+        "${CODEX_HOME:-~/.codex}/archived_sessions/**/rollout-*.jsonl",
+        "${CODEX_HOME:-~/.codex}/archived_sessions/**/rollout-*.jsonl.zst",
         "${CODEX_HOME:-~/.codex}/history.jsonl",
         "${DEJA_CODEX_ROOT}/sessions/**/rollout-*.jsonl",
         "${HOME}/Library/Developer/Xcode/CodingAssistant/codex/sessions/**/rollout-*.jsonl",
+        "${HOME}/Library/Developer/Xcode/CodingAssistant/codex/archived_sessions/**/rollout-*.jsonl",
         "${DEJA_XCODE_CODEX_ROOT}/sessions/**/rollout-*.jsonl"
       ],
       "format_kind": "jsonl-rollout-and-history",
@@ -330,6 +334,10 @@
       "id": "goose",
       "store_paths": [
         "${GOOSE_PATH_ROOT}/data/sessions/sessions.db",
+        "~/Library/Application Support/Block/goose/sessions/*.jsonl",
+        "~/Library/Application Support/Block/goose/sessions/sessions.db",
+        "~/Library/Application Support/goose/sessions/sessions.db",
+        "~/.local/share/Block/goose/sessions/sessions.db",
         "~/.local/share/goose/sessions/*.jsonl",
         "~/.local/share/goose/sessions/sessions.db",
         "${XDG_DATA_HOME}/goose/sessions/*.jsonl",
@@ -634,6 +642,84 @@
         "prereq": ""
       },
       "gaps": {}
+    },
+    {
+      "id": "cherrystudio",
+      "store_paths": [
+        "~/Library/Application Support/CherryStudio/Data/Agents/.claude/projects/*/*.jsonl",
+        "%APPDATA%/CherryStudio/Data/Agents/.claude/projects/*/*.jsonl",
+        "${XDG_CONFIG_HOME}/CherryStudio/Data/Agents/.claude/projects/*/*.jsonl",
+        "<app data>/CherryStudio/.claude/projects/*/*.jsonl",
+        "${DEJA_CHERRYSTUDIO_ROOTS}/*/*.jsonl"
+      ],
+      "format_kind": "jsonl",
+      "fixture_paths": [
+        "fixtures/registry/cherrystudio/projects/-workspace-registry-demo/registry-cherrystudio.jsonl"
+      ],
+      "parser_source": "internal/sources/cherrystudio.go",
+      "last_verified": "2026-09-16",
+      "display_name": "Cherry Studio",
+      "capabilities": {
+        "mcp": true,
+        "auto": false,
+        "skill": false,
+        "command": false,
+        "resume": false,
+        "handoff": "paste",
+        "prereq": "import the server once in Settings -> MCP"
+      },
+      "gaps": {
+        "auto": {
+          "state": "impossible",
+          "why": "Cherry Studio has no hook surface for a third party: it is an Electron app whose agent sessions run inside it, and the extension points are the MCP server list and its import paths (#3644)."
+        },
+        "skill": {
+          "state": "todo",
+          "why": "No skill channel found: the app loads no user-level instructions file a third party can write, so guidance reaches the model through the MCP tool descriptions (#3644)."
+        },
+        "command": {
+          "state": "impossible",
+          "why": "No slash-command surface for a third party: commands are the app's own and an MCP server cannot register one (#3644)."
+        }
+      }
+    },
+    {
+      "id": "kilocode",
+      "store_paths": [
+        "<vscode-globalStorage>/kilocode.kilo-code/tasks/*/api_conversation_history.json",
+        "${DEJA_KILO_ROOTS}/tasks/*/api_conversation_history.json",
+        "~/.local/share/kilo/kilo.db",
+        "${XDG_DATA_HOME}/kilo/kilo.db",
+        "${DEJA_KILO_DB}"
+      ],
+      "format_kind": "json+sqlite",
+      "fixture_paths": [
+        "fixtures/registry/kilocode/tasks/registry-kilocode/api_conversation_history.json",
+        "fixtures/registry/kilocode/kilo.sql"
+      ],
+      "parser_source": "internal/sources/kilo.go",
+      "last_verified": "2026-09-16",
+      "display_name": "Kilo Code",
+      "capabilities": {
+        "mcp": true,
+        "auto": false,
+        "skill": true,
+        "command": false,
+        "resume": false,
+        "handoff": "paste",
+        "prereq": "sqlite3 for the CLI store"
+      },
+      "gaps": {
+        "auto": {
+          "state": "blocked",
+          "why": "Kilo Code has no hook surface: a search of Kilo-Org/kilocode finds none, and the extension is a Roo fork whose hooks are still in flight upstream (Roo PRs #10785, #11128, #11663). Recall arrives when the model calls the tool rather than on its own (#3643).",
+          "source": "https://github.com/RooCodeInc/Roo-Code/pull/11663"
+        },
+        "command": {
+          "state": "todo",
+          "why": "No slash command yet. Kilo reads skills from ~/.kilocode/skills, ~/.kilo/skills and the project tree, which is the channel deja writes; a command would be a second one (#3643)."
+        }
+      }
     },
     {
       "id": "roo",
