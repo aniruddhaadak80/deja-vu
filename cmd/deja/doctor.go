@@ -838,7 +838,10 @@ func doctorHarnesses(w io.Writer, dir string) {
 	printFilesBeside("grok", grokRoot, doctorExists(grokRoot), sources.GrokSessionFiles(), sources.GrokSidecarFiles()...)
 
 	qwenRoot := filepath.Join(sources.QwenRoot(), "projects")
-	printFiles("qwen", qwenRoot, doctorExists(qwenRoot), sources.QwenSessionFiles())
+	// Beside, not unread: `<id>.runtime.json`, `meta.json` and
+	// `extract-cursor.json` are qwen's own bookkeeping (#3676).
+	printFilesBeside("qwen", qwenRoot, doctorExists(qwenRoot),
+		sources.QwenSessionFiles(), sources.QwenSidecarFiles()...)
 
 	kimiRoot := filepath.Join(sources.KimiRoot(), "sessions")
 	printFilesBeside("kimi", kimiRoot, doctorExists(kimiRoot), sources.KimiSessionFiles(), sources.KimiSidecarFiles()...)
@@ -883,7 +886,7 @@ func doctorHarnesses(w io.Writer, dir string) {
 	}
 	kiloDetail := doctorCount(kiloTasks, "task file")
 	if kiloHasDB {
-		kiloDetail += ", CLI store present"
+		kiloDetail += ", CLI store present" + doctorDBPrereqNote(sqlite)
 	}
 	printRow("kilocode", kiloLoc, kiloTasks > 0 || kiloHasDB, kiloDetail)
 
@@ -900,8 +903,23 @@ func doctorHarnesses(w io.Writer, dir string) {
 	// for drift that is not there.
 	printFilesBeside("commandcode", commandRoot, doctorExists(commandRoot),
 		sources.CommandCodeSessionFiles(), sources.CommandCodeCheckpointFiles()...)
+	// ZCode has two stores, the way Kilo does: the project transcripts and the
+	// CLI's SQLite database. The count is the transcripts and the database is
+	// named beside them, or the newest "file" is a database the transcript
+	// reader cannot read and the row calls the store broken (#3675).
 	zcodeRoot := sources.ZCodeRoot()
-	printFiles("zcode", zcodeRoot, doctorExists(zcodeRoot), sources.ZCodeSessionFiles())
+	zcodeTranscripts := sources.ZCodeTranscriptFiles()
+	zcodeLoc := zcodeRoot
+	zcodeDB := sources.ZCodeDB()
+	zcodeHasDB := doctorExists(zcodeDB)
+	if zcodeHasDB {
+		zcodeLoc = zcodeLoc + string(os.PathListSeparator) + zcodeDB
+	}
+	zcodeDetail := doctorCount(len(zcodeTranscripts), "file")
+	if zcodeHasDB {
+		zcodeDetail += ", CLI store present" + doctorDBPrereqNote(sqlite)
+	}
+	printRow("zcode", zcodeLoc, doctorExists(zcodeRoot) || zcodeHasDB, zcodeDetail)
 	gjcRoot := sources.GjcRoot()
 	printFiles("gjc", gjcRoot, doctorExists(gjcRoot), sources.GjcSessionFiles())
 
@@ -985,6 +1003,20 @@ func toolFromSkip(reason string) string {
 	default:
 		return "the sqlite3 CLI"
 	}
+}
+
+// doctorDBPrereqNote is what a row has to add about the half of a store that
+// needs the sqlite3 CLI. Kilo's and ZCode's rows named their database and said
+// nothing about the tool that reads it, so on a machine without sqlite3 those
+// sessions were missing from recall with the row reporting the store present
+// (#3679). The rows for the stores that are only a database say it through
+// doctorSQLiteDetail; these two have transcripts as well, so the note rides
+// beside the count.
+func doctorDBPrereqNote(sqlite bool) string {
+	if sqlite {
+		return ""
+	}
+	return " but the sqlite3 CLI is missing — those sessions are unavailable"
 }
 
 func doctorSQLiteDetail(db string, sqlite bool) string {
@@ -1311,8 +1343,26 @@ func dejaCommandIn(path string) string {
 					return cmd
 				}
 			}
+			// And the keys deja writes that are not just `deja`: Zed's entry is
+			// `deja-context-server`, the id its extension owns. With a build
+			// under another name in it — `deja-arm` from a probe run — neither
+			// the name test nor the `deja` key matched, so the row said `wired`
+			// about a server pointing into a scratch directory (#3683).
+			for key, v := range m {
+				if !strings.HasPrefix(strings.ToLower(key), "deja") {
+					continue
+				}
+				if cmd := mcpEntryCommand(v); cmd != "" {
+					return cmd
+				}
+			}
 		}
-		return ""
+		// Parsed, and nothing of deja's under any container this knows. The
+		// text reader looks for the key by name instead, which is how a
+		// harness with a container nobody has added here still gets an answer
+		// — and it can only find what this walk missed, since both require a
+		// deja-named key or binary (#3683).
+		return dejaKeyedCommand(string(b))
 	}
 	// The attributed read first. The scan below takes any `command` in the file
 	// whose value looks like deja, and goose keeps a `slash_commands` list at
@@ -1355,7 +1405,8 @@ func dejaCommandIn(path string) string {
 // (#3663).
 func mcpServerMaps(root map[string]any) []map[string]any {
 	var out []map[string]any
-	for _, key := range []string{"mcpServers", "mcp", "servers"} {
+	// context_servers is Zed's spelling of the same map (#3683).
+	for _, key := range []string{"mcpServers", "mcp", "servers", "context_servers"} {
 		m, _ := root[key].(map[string]any)
 		if m == nil {
 			continue
@@ -1520,7 +1571,34 @@ func dejaBlockOpens(trimmed string) (opens, beside bool) {
 		"serverName: deja", `serverName: "deja"`, "serverName: 'deja'":
 		return true, true
 	}
+	// A quoted JSON key, for the files that do not parse as JSON: Zed's
+	// settings carry comments, so the whole text is read a line at a time, and
+	// its server key is `deja-context-server` rather than `deja` (#3683).
+	if key, ok := jsonKeyOpening(trimmed); ok && strings.HasPrefix(strings.ToLower(key), "deja") {
+		return true, false
+	}
 	return false, false
+}
+
+// jsonKeyOpening reads `"name": {` — the line that opens an object under a
+// key — and returns the key.
+func jsonKeyOpening(trimmed string) (string, bool) {
+	if !strings.HasPrefix(trimmed, `"`) {
+		return "", false
+	}
+	end := strings.Index(trimmed[1:], `"`)
+	if end < 0 {
+		return "", false
+	}
+	key := trimmed[1 : 1+end]
+	rest := strings.TrimSpace(trimmed[1+end+1:])
+	if !strings.HasPrefix(rest, ":") {
+		return "", false
+	}
+	if strings.TrimSpace(strings.TrimPrefix(rest, ":")) != "{" {
+		return "", false
+	}
+	return key, true
 }
 
 // doctorWiringNote adds what "wired" cannot promise for a given harness. Three
@@ -1588,7 +1666,7 @@ func doctorMCPConfigs() []doctorMCPConfig {
 		// pointed at a throwaway build with every other row repaired.
 		{"deepseek", dshPatchPath(), doctorDSHWired, nil},
 		{"roo", doctorFirstExisting(rooMCPSettingsPaths(), vsCodeExtensionMCPPath(sources.RooExtensionID)), doctorJSONWired("mcpServers"), doctorJSONDejaKeys("mcpServers")},
-		{"kilocode", doctorFirstExisting(kilocodeMCPSettingsPaths(), vsCodeExtensionMCPPath(sources.KiloExtensionID)), doctorJSONWired("mcpServers"), doctorJSONDejaKeys("mcpServers")},
+		{"kilocode", kilocodeDoctorPath(), doctorKilocodeWired, nil},
 		{"kiro", kiroMCPSettingsPath(), doctorJSONWired("mcpServers"), doctorJSONDejaKeys("mcpServers")},
 		{"senpi", senpiMCPPath(), doctorJSONWired("mcpServers"), doctorJSONDejaKeys("mcpServers")},
 		{"kimchi", kimchiMCPPath(), doctorJSONWired("mcpServers"), doctorJSONDejaKeys("mcpServers")},
@@ -1654,6 +1732,32 @@ func doctorFirstExisting(paths []string, fallback string) string {
 		return paths[0]
 	}
 	return fallback
+}
+
+// kilocodeDoctorPath names the config that is actually there. Kilo has two: the
+// extension's settings under a VS Code host, and the CLI's own
+// `<config>/kilo/kilo.jsonc`, which is OpenCode-shaped because the CLI is
+// OpenCode vendored. A machine with only the CLI had its row pointing at an
+// editor path that does not exist (#3672).
+func kilocodeDoctorPath() string {
+	for _, p := range kilocodeMCPSettingsPaths() {
+		if doctorExists(p) {
+			return p
+		}
+	}
+	if cli := kilocodeCLIConfigPath(); doctorExists(cli) {
+		return cli
+	}
+	if paths := kilocodeMCPSettingsPaths(); len(paths) > 0 {
+		return paths[0]
+	}
+	return vsCodeExtensionMCPPath(sources.KiloExtensionID)
+}
+
+// doctorKilocodeWired reads whichever of the two shapes the named file is in:
+// `mcpServers` in the extension's settings, `mcp` in the CLI's config.
+func doctorKilocodeWired(path string) bool {
+	return doctorJSONWired("mcpServers")(path) || doctorJSONWired("mcp")(path)
 }
 
 // vsCodeExtensionMCPPath is where an extension would keep its MCP settings in

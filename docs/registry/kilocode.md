@@ -7,7 +7,33 @@
 - **Format**: task JSON (Cline lineage) and SQLite (OpenCode schema)
 - **Needs**: `sqlite3` for the CLI store; the task files need nothing
 
-**Last verified:** 2026-09-16
+- **Wiring**: `deja install kilocode` writes the extension's
+  `<globalStorage>/kilocode.kilo-code/settings/mcp_settings.json` for every host
+  that has it, **and** the CLI's own `<config>/kilo/kilo.jsonc` — Kilo vendors
+  OpenCode, so the CLI takes OpenCode's `mcp` block. `kilo mcp list` prints
+  `✓ deja connected` once it is there. The skill goes in
+  `~/.kilocode/skills/deja-search/SKILL.md` and the command in
+  `<config>/kilo/commands/deja.md`.
+
+Verified on `@kilocode/cli` 7.7.3. A real `kilo run` session landed in
+`~/.local/share/kilo/kilo.db`, deja indexed it and recall returned the phrase
+that was typed; `deja resume` printed `kilo -s <id>` and running it brought the
+session back with that turn on screen. `kilo mcp list` prints `✓ deja
+connected`, and all four surfaces are in its own palette at once:
+
+```
+/deja                 Search this machine's past AI coding sessions (deja-vu)
+/deja:deja:mcp        Search this machine's past coding sessions — …
+/deja-search:skill    deja-vu memory — search the user's past AI coding sessions …
+/deja-history:skill   Search the user's past AI coding sessions. Use when …
+```
+
+Kilo namespaces its palette by kind — `:mcp` for a server's prompt, `:skill`
+for a skill — so the command file, the server and both skills coexist under the
+same word. Gemini's flat namespace is the opposite case and needed the command
+file dropped there (#3665).
+
+**Last verified:** 2026-09-17
 
 Kilo Code is a Roo Code fork that vendors OpenCode — `packages/opencode` is
 1,780 files inside the Kilo repository — and `packages/kilo-vscode/src/legacy-migration`

@@ -1,15 +1,19 @@
 # Kimchi Coding
 
 - **ID**: `kimchi`
-- **Store**: `${KIMCHI_CODING_AGENT_DIR:-${XDG_CONFIG_HOME:-~/.config}/kimchi/harness}/sessions/<session>.jsonl`
+- **Store**: `${KIMCHI_CODING_AGENT_DIR:-${XDG_CONFIG_HOME:-~/.config}/kimchi/harness}/sessions/--<encoded-cwd>--/<session>.jsonl`
 - **Read override**: `DEJA_KIMCHI_ROOT` replaces the session root
 - **Format**: pi's session JSONL
 - **Needs**: nothing
 
 Kimchi Coding is another pi descendant and writes the same envelope, so the
-parsing is pi's.
+parsing is pi's — including the directory per project. Its own binary builds
+that path in `getDefaultSessionDirPath`: `<agent>/sessions/--<encoded cwd>--`,
+where the encoding is the working directory with the separators replaced by
+dashes and a `--` on each end. A session file directly under the root is read
+too, and then the header's `cwd` is what names the project.
 
-**Last verified:** 2026-09-16
+**Last verified:** 2026-09-17
 
 ## Known quirks and drift
 
@@ -34,3 +38,23 @@ parsing is pi's.
   `extensions.claude-code-skills` loads the skill from `~/.claude/skills`.
   deja records those as blocked rather than claiming auto-recall it does not
   control.
+
+## Measured on a live install
+
+`@getkimchi/kimchi` 0.1.99, in a hermetic HOME:
+
+- `deja install kimchi` writes `<config>/kimchi/harness/mcp.json` and kimchi's
+  own first-run panel lists it: `MCP servers: deja`.
+- That panel also reports what it found from deja's Claude Code install —
+  `Claude Code skills: 1`, `Claude Code commands: 1`, `Agents skills: 2` — and
+  offers `Migrate MCP servers to Kimchi?` with migrate / skip / never.
+- Skill directories are chosen in the wizard ("Select skill paths to enable",
+  default `none`), which is a second switch beside the compatibility extension.
+- `kimchi resources enable extensions.claude-code-hook-adapter` adopts **all
+  five** of deja's Claude hooks, and `kimchi resources status` then names each
+  one: `hooks.claude-code.user.session-start.0`,
+  `…user-prompt-submit.0`, `…pre-tool-use.0`, `…post-tool-use.0`,
+  `…pre-compact.0`.
+- What is still unverified here: whether those hooks fire in a turn. Kimchi
+  requires a browser login to its own service before the first prompt, and that
+  is not an account to create on somebody's behalf.

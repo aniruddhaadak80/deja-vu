@@ -10,7 +10,7 @@
 Cherry Studio runs Claude Code sessions from a desktop app and writes ordinary
 Claude Code transcripts under its own app data, so the parsing is Claude's.
 
-**Last verified:** 2026-09-16
+**Last verified:** 2026-09-17
 
 The fixture in this repository sits at `fixtures/registry/cherrystudio/projects/…` rather than
 under a `.claude` directory: the repository excludes `.claude/`, so a fixture carrying that
@@ -52,3 +52,27 @@ the one above.
   Electron app, and the extension points are the MCP server list and its import
   paths. Same for slash commands. A skill channel was not found either — the
   guidance reaches the model through the MCP tool descriptions.
+
+## The import file, checked against the app's own validator
+
+Cherry Studio 2.0.14 installed, and its importer read out of the bundle
+(`Contents/Resources/app.asar`, `out/renderer/assets/mcp-uMWTyAhi.js`):
+
+```js
+const McpConfigSchema = object({ mcpServers: record(string(), McpServerConfigSchema) })
+// McpServerConfigSchema = object({ id?, name?, type?, description?, url?, baseUrl?,
+//   command?, registryUrl?, args?, env?, headers?, … }).strict()
+// type ∈ stdio | sse | streamableHttp | inMemory
+```
+
+and the paste handler beside it names each server after its key unless the entry
+carries a `name`. So the file deja writes —
+`{"mcpServers":{"deja":{"type":"stdio","command":"<abs path>","args":["mcp"]}}}`
+— validates, and the server arrives called `deja`.
+
+The schema is `.strict()`, which is the part worth remembering: one key the app
+does not know fails the whole import rather than being dropped. A test pins
+deja's key set for that reason (#3674).
+
+What still needs a person: the paste itself, and a Claude account in the app
+before it writes any transcript at all.

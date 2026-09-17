@@ -1710,7 +1710,7 @@ func hookCommandKindOf(existing any, cmd string) hookCommandKind {
 		}
 		at := i + j
 		end := at + 1 + len(sub)
-		if isDejaBinaryToken(lastShellToken(s[:at])) && subcommandEndsAt(s[end:]) {
+		if hookTokenIsDejas(lastShellToken(s[:at])) && subcommandEndsAt(s[end:]) {
 			if strings.TrimSpace(s) == strings.TrimSpace(lastShellToken(s[:at])+" "+sub) {
 				return hookDejas
 			}
@@ -1719,6 +1719,30 @@ func hookCommandKindOf(existing any, cmd string) hookCommandKind {
 		i = end
 	}
 	return hookNotDejas
+}
+
+// hookTokenIsDejas is isDejaBinaryToken for the binary in a hook line, where
+// the subcommand beside it has already been matched against one of deja's own.
+// That pair is what makes a differently-named build recognisable: `go build -o
+// deja-cont` and a probe run leave `<path>/deja-cont hook-prompt` in the
+// settings, and the record of paths deja has installed from does not always
+// hold them — on the machine this was found it had three of the six entries'
+// binaries — so the name test has to answer too, or the entry reads as a
+// stranger's and a new one stacks beside it on every install (#3681).
+//
+// Deliberately narrow: the token must be named like a deja build *and* be
+// running one of deja's hook subcommands. A line that merely contains deja's
+// hook inside something bigger is still hookWrapsDejas and is left alone.
+func hookTokenIsDejas(tok string) bool {
+	if isDejaBinaryToken(tok) {
+		return true
+	}
+	tok = strings.Trim(strings.TrimSpace(tok), `"'`)
+	if i := strings.LastIndexAny(tok, `/\`); i >= 0 {
+		tok = tok[i+1:]
+	}
+	tok = strings.ToLower(strings.TrimSuffix(strings.ToLower(tok), ".exe"))
+	return strings.HasPrefix(tok, "deja")
 }
 
 // isDejaHookCommand reports whether deja's hook runs in this command at all,
@@ -3090,11 +3114,20 @@ func installMCPJSON(path, exe string, uninstall bool) (installResult, error) {
 }
 
 func installOpencode(exe string, uninstall bool) (installResult, error) {
-	dir := filepath.Join(opencodeConfigHome(), "opencode")
-	path := filepath.Join(dir, "opencode.json")
+	return installOpencodeShaped(filepath.Join(opencodeConfigHome(), "opencode"), "opencode", exe, uninstall)
+}
+
+// installOpencodeShaped writes the `mcp` block into a config of OpenCode's
+// shape. Kilo Code's CLI is OpenCode vendored — `packages/opencode` inside the
+// Kilo repository — and keeps its own config at `<config>/kilo/kilo.jsonc`,
+// with the same `{"type":"local","command":[…]}` entries. Measured: with that
+// block written, `kilo mcp list` prints `✓ deja connected` and the command it
+// runs (#3672).
+func installOpencodeShaped(dir, base, exe string, uninstall bool) (installResult, error) {
+	path := filepath.Join(dir, base+".json")
 	if _, err := os.Stat(path); err != nil {
-		if _, e := os.Stat(filepath.Join(dir, "opencode.jsonc")); e == nil {
-			path = filepath.Join(dir, "opencode.jsonc")
+		if _, e := os.Stat(filepath.Join(dir, base+".jsonc")); e == nil {
+			path = filepath.Join(dir, base+".jsonc")
 		}
 	}
 	old, err := readConfig(path)
