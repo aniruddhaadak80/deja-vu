@@ -61,8 +61,8 @@ func yamlBlockIsSequence(block string) bool {
 
 func installGoose(exe string, uninstall bool) (installResult, error) {
 	path := filepath.Join(gooseConfigDir(), "config.yaml")
-	old, err := os.ReadFile(path)
-	if err != nil && !os.IsNotExist(err) {
+	old, err := readConfig(path)
+	if err != nil {
 		return installResult{}, err
 	}
 	// A config written on Windows, or by an editor set that way, uses CRLF.
@@ -354,7 +354,7 @@ func writeGooseHook(exe string) (string, error) {
 			"SessionStart": []any{map[string]any{
 				"hooks": []any{map[string]any{
 					"type":    "command",
-					"command": shellQuote(exe) + " hook-goose",
+					"command": hookRun(exe, "hook-goose"),
 					"timeout": 20,
 				}},
 			}},
@@ -367,7 +367,7 @@ func writeGooseHook(exe string) (string, error) {
 			"UserPromptSubmit": []any{map[string]any{
 				"hooks": []any{map[string]any{
 					"type":    "command",
-					"command": shellQuote(exe) + " hook-goose-prompt",
+					"command": hookRun(exe, "hook-goose-prompt"),
 					"timeout": 20,
 				}},
 			}},

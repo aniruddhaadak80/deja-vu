@@ -1392,7 +1392,40 @@ func readConfig(path string) ([]byte, error) {
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	return b, nil
+	return bytes.TrimPrefix(b, utf8BOM), nil
+}
+
+// utf8BOM is what PowerShell 5.1 puts at the front of a file by default —
+// `Set-Content`, `Out-File`, a `>` redirect — and what editors on Windows may
+// too. Every JSON parser here refused such a config, so nine targets reported
+// `invalid character '<BOM>' looking for beginning of value`: a remedy naming
+// a character that cannot be seen, in a file its owner did not knowingly
+// change, and one a harness may well read — VS Code's own readers strip a BOM
+// (#3696). It belongs with the line endings and the indent: read past it,
+// write it back.
+var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
+
+// matchByteOrderMark puts back the mark the file began with, for a writer that
+// worked on the text without it.
+func matchByteOrderMark(old, next []byte) []byte {
+	if !bytes.HasPrefix(old, utf8BOM) || bytes.HasPrefix(next, utf8BOM) || len(next) == 0 {
+		return next
+	}
+	return append(append([]byte(nil), utf8BOM...), next...)
+}
+
+// fileStartsWithBOM reports whether the file on disk begins with the mark.
+// Read from the file rather than from the bytes a writer holds, because
+// readConfig takes it off before any of them sees the text.
+func fileStartsWithBOM(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = f.Close() }()
+	var head [3]byte
+	n, _ := f.Read(head[:])
+	return n == len(utf8BOM) && bytes.Equal(head[:], utf8BOM)
 }
 
 func writeIfChanged(path string, old, next []byte) (string, error) {
@@ -1412,6 +1445,11 @@ func writeIfChanged(path string, old, next []byte) (string, error) {
 	// rewrite the file and report it changed.
 	next = matchLineEndings(old, next)
 	next = matchFinalNewline(old, next)
+	// The byte order mark is read off the file rather than out of `old`:
+	// readConfig strips it, so every writer works on the text without it and
+	// this is the one place that knows the file had one (#3696). The
+	// comparison is of the text, and the mark goes back on what is written.
+	bom := fileStartsWithBOM(path)
 	if bytes.Equal(old, next) {
 		return "unchanged", nil
 	}
@@ -1524,6 +1562,9 @@ func writeIfChanged(path string, old, next []byte) (string, error) {
 	}
 	tmpName := tmp.Name()
 	defer func() { _ = os.Remove(tmpName) }()
+	if bom {
+		next = matchByteOrderMark(utf8BOM, next)
+	}
 	if _, err := tmp.Write(next); err != nil {
 		_ = tmp.Close()
 		return "", err
@@ -1654,7 +1695,7 @@ func installClaudeHook(exe string, uninstall bool) (installResult, error) {
 	}
 	nextRoot := root
 	for _, h := range claudeHookWiring {
-		nextRoot = updateClaudeHook(nextRoot, h.Event, exe+" "+h.Sub, h.Matcher, uninstall)
+		nextRoot = updateClaudeHook(nextRoot, h.Event, hookRun(exe, h.Sub), h.Matcher, uninstall)
 	}
 	// In the shape the reader wrote it, like every other JSON writer: this was
 	// the last one still marshalling straight, so an install that added hooks
@@ -1672,7 +1713,7 @@ func installClaudeHook(exe string, uninstall bool) (installResult, error) {
 }
 
 func updateClaudeSessionStartHook(root map[string]any, exe string, uninstall bool) map[string]any {
-	root = updateClaudeHook(root, "SessionStart", exe+" hook-context", "", uninstall)
+	root = updateClaudeHook(root, "SessionStart", hookRun(exe, "hook-context"), "", uninstall)
 	return root
 }
 
@@ -1792,15 +1833,44 @@ func hookCommandKindOf(existing any, cmd string) hookCommandKind {
 		}
 		at := i + j
 		end := at + 1 + len(sub)
-		if hookTokenIsDejas(lastShellToken(s[:at])) && subcommandEndsAt(s[end:]) {
-			if strings.TrimSpace(s) == strings.TrimSpace(lastShellToken(s[:at])+" "+sub) {
+		// Every candidate, not the first that matches: an unquoted path with a
+		// space in it makes the last token look like a wrapper around deja's
+		// hook while the whole prefix is deja's own binary, and reading it as
+		// a wrapper is what left those entries unrepaired (#3692).
+		kind := hookNotDejas
+		for _, tok := range hookBinariesBefore(s[:at]) {
+			if !hookTokenIsDejas(tok) || !subcommandEndsAt(s[end:]) {
+				continue
+			}
+			if strings.TrimSpace(s) == strings.TrimSpace(tok+" "+sub) {
 				return hookDejas
 			}
-			return hookWrapsDejas
+			kind = hookWrapsDejas
+		}
+		if kind != hookNotDejas {
+			return kind
 		}
 		i = end
 	}
 	return hookNotDejas
+}
+
+// hookBinariesBefore is what the binary could be in the text before a
+// subcommand: the last shell token, and — when the whole of that text names a
+// file on disk — the text itself.
+//
+// The second is for a path nothing quoted. An unquoted path with a space in it
+// is several tokens, so the token test read `/tmp/deja spacey/…/deja-hook
+// hook-prompt` as somebody else's command wrapping deja's, and an install left
+// the entry it could not run exactly where it was (#3692). The file has to be
+// there for that reading: `env FOO=1 /usr/bin/deja-hook hook-prompt` is a
+// wrapper somebody wrote and is not deja's line to rewrite.
+func hookBinariesBefore(prefix string) []string {
+	out := []string{lastShellToken(prefix)}
+	if whole := strings.TrimSpace(prefix); strings.Contains(whole, " ") && fileExists(whole) {
+		out = append(out, whole)
+	}
+	return out
 }
 
 // hookTokenIsDejas is isDejaBinaryToken for the binary in a hook line, where
