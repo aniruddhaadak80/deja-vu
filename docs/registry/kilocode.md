@@ -28,6 +28,10 @@ see [OpenCode](opencode.md) for the field-by-field description.
 
 ## Known quirks and drift
 
+- Resume: `kilo -s <id>` for a session from the CLI store — "session id to
+  continue" in Kilo's own CLI options (`packages/opencode/src/cli/cmd/tui.ts`).
+  An editor task is refused with the reason: those live under the host's
+  globalStorage and reopen from Kilo's history view, the same split Roo has.
 - Two stores for one harness, and a session can exist in both if the migration
   has run: the task files are not deleted by it.
 - A Roo task and a Kilo task are the same file name in sibling directories under
@@ -37,6 +41,10 @@ see [OpenCode](opencode.md) for the field-by-field description.
   `time` object falls back to the file's mtime. deja sorts by time rather than
   counting tokens, so the turn still needs a time; the OpenCode path already
   falls back the same way.
+- The slash command is real after all: Kilo's own workflows doc puts global
+  commands in `~/.config/kilo/commands/`, project ones in `.kilo/commands/`,
+  and a file named `deja.md` is invoked as `/deja`. `deja install kilocode`
+  writes the global one.
 - Wiring: `deja install kilocode` writes the MCP server into
   `<globalStorage>/kilocode.kilo-code/settings/mcp_settings.json` for every host that carries the
   extension, and the shared manual into `~/.kilocode/skills/deja-search/SKILL.md`, which is where

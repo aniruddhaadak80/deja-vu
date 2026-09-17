@@ -15,6 +15,10 @@ project directory names the project, and the header's cwd wins when it is there.
 
 ## Known quirks and drift
 
+- Resume: `gjc --resume <id>`. From its session-operations document:
+  `--resume <id|path>` at startup opens an existing session, and a session
+  belonging to another project forks into the current one — so deja prints
+  the command without a working directory rather than guessing at one.
 - **Sub-agent passes sit one directory deeper**, under a directory named for the
   session they belong to, one file per pass. They are skipped: a sub-agent's
   transcript repeats the parent's work in its own words, and indexed as a
@@ -23,4 +27,22 @@ project directory names the project, and the header's cwd wins when it is there.
   sub-agents already use.
 - `service_tier_change` lines are not turns and are dropped rather than read as
   empty messages.
-- Read support only.
+- Wiring: `deja install gjc` writes the server into `~/.gjc/agent/mcp.json`
+  and the skill into `~/.gjc/agent/skills/deja-search/SKILL.md`. Both paths
+  are from gjc's own surface table (`docs/customization.md`), and the skill
+  location matters: gjc loads its native skills directory, while Claude's and
+  Codex's are import candidates it does not read, so a skill written there
+  would be a file no session ever sees.
+- Auto-recall is the next step rather than a config line. gjc's native hooks
+  carry pi's event names — `session_start`, `before_agent_start`, `tool_call`
+  — but they are TypeScript modules loaded with Bun `import()`, so this is
+  pi's extension ported. Its two documents also disagree on the directory
+  (`~/.gjc/hooks/{pre,post}` against `~/.gjc/agent/hooks/{pre,post}`), which
+  is settled now, and against the loader rather than either document:
+  `resolveScopePaths` puts the user-scope hooks at `<agent dir>/hooks/<pre|post>`,
+  so `docs/hooks.md`'s `~/.gjc/hooks` is stale. What still stops a hook being
+  written there is the shape: a directory hook is a module exporting
+  `default (api) => api.on("tool_call", …)` whose only documented return is
+  `{block, reason}` — allow or refuse, with no channel for adding context. The
+  lifecycle events come from the in-process API, which is the plugin surface,
+  so auto-recall here is a gjc plugin rather than a file.

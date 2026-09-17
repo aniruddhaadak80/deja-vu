@@ -267,7 +267,7 @@ aider &middot; Amp &middot; Antigravity &middot; Claude Code &middot; Cline &mid
 | Cline | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Codex CLI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Copilot CLI | ✅ | ✕ | ✅ | ✅ | ✅ | ✅ | — |
-| VS Code Copilot Chat | ✅ | ✕ | ✅ | — | ✕ | paste | — |
+| VS Code Copilot Chat | ✅ | ✕ | ✅ | ✅ | ✕ | paste | — |
 | Cursor | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | sqlite3 (IDE chats) |
 | DeepSeek Harness | ✅ | ✅ | ✅ | ✅ | ✕ | paste | zstd |
 | Gemini CLI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
@@ -278,19 +278,19 @@ aider &middot; Amp &middot; Antigravity &middot; Claude Code &middot; Cline &mid
 | omp (Oh My Pi) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | OpenClaw | ✅ | ✅ | ✅ | ✅ | ✅ | paste | — |
 | opencode | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | sqlite3 |
-| Continue | ✅ | ⚠ | ✅ | ✅ | — | paste | — |
+| Continue | ✅ | ⚠ | ✅ | ✅ | ✅ | paste | — |
 | Crush | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | sqlite3 |
 | pi | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | prime-agent (PrimeIntellect) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Qwen Code | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
-| Cherry Studio | ✅ | ✕ | — | ✕ | ✕ | paste | import the server once in Settings -> MCP |
-| Senpi | ? | — | — | — | — | paste | none |
-| gajae-code | — | — | — | — | — | paste | none |
-| Kimchi Coding | — | — | — | — | — | paste | none |
-| Command Code | — | — | — | — | — | paste | none |
-| ZCode | ⚠ | — | — | — | — | paste | none |
-| Kiro | — | — | — | — | — | paste | none |
-| Kilo Code | ✅ | ⚠ | ✅ | — | — | paste | sqlite3 for the CLI store |
+| Cherry Studio | ✅ | ✕ | ✅ | ✕ | ✕ | paste | import the server once in Settings -> MCP; enable the skill for the agent |
+| Senpi | ? | ? | ? | ? | ? | paste | none |
+| gajae-code | ✅ | — | ✅ | ✅ | ✅ | paste | none |
+| Kimchi Coding | ✅ | ⚠ | ⚠ | ⚠ | ✅ | paste | none |
+| Command Code | ✅ | ✅ | ✅ | ✅ | ? | paste | none |
+| ZCode | ✅ | ✅ | ? | ? | — | paste | none |
+| Kiro | ✅ | — | ✕ | ? | ✅ | paste | none |
+| Kilo Code | ✅ | ⚠ | ✅ | ✅ | ✅ | paste | sqlite3 for the CLI store |
 | Roo Code | ✅ | ⚠ | ✅ | ✅ | ✅ | paste | roo CLI (editor tasks reopen in the editor) |
 | Zed | ✅ | ✕ | ✅ | ✅ | ✕ | paste | sqlite3 + zstd |
 

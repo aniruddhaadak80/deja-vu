@@ -20,6 +20,10 @@ directory per session under the workspace, holding `session.json` (id, model,
 
 ## Known quirks and drift
 
+- Resume: `kiro-cli chat --resume-id <sessionId>`, which needs Kiro CLI 2.2.0
+  or newer. The IDE's sessions carry a `sess_` id and reopen from the app, so
+  `deja resume` refuses those with the reason rather than printing a command
+  that would not find them.
 - **A reply arrives in pieces.** Several `AssistantMessage` records can share
   one `data.message_id`: the CLI appends the answer as it streams, each record
   carrying the next piece rather than the whole answer so far. Read one message
@@ -39,6 +43,22 @@ directory per session under the workspace, holding `session.json` (id, model,
   `conversations_v2`. No sample of either is in hand — Kiro is not installed on
   the machine this was written on — and a reader built against a guessed shape
   is one that drops history without saying so.
-- Read support only. Kiro takes MCP servers in `~/.kiro/settings/mcp.json` and
-  agent hooks in `.kiro/hooks/`, so the wiring exists to be written; the
-  registry records each as a gap rather than leaving it blank.
+- Wiring: `deja install kiro` writes the server into
+  `~/.kiro/settings/mcp.json`, which the CLI and the IDE both read — the same
+  file `kiro-cli mcp add --scope global` writes. One thing the installer
+  cannot do for you: a custom agent (`~/.kiro/agents/<name>.json`) does not
+  inherit global servers, so the entry has to be repeated in that agent's own
+  `mcpServers` block, and the install note says so.
+- Guidance: `deja install kiro` writes `~/.kiro/steering/deja.md`, the global
+  half of steering — scanned for every project, alongside the workspace one.
+  It is four lines on purpose. A steering document declares an inclusion mode,
+  and the only mode measured as loaded by kiro-cli is `always`: `manual` is not
+  loaded and cannot be invoked from a session, `fileMatch` was withheld
+  (KiroCrew's steering reference, measured against 2.19.1). So this text is in
+  front of every turn whether it is wanted or not, which is why it names the
+  tool and stops rather than carrying the full skill deja writes where a skill
+  is loaded on demand.
+- Auto-recall is still a gap, and not for lack of a hook system: Kiro's agent
+  hooks are per-workspace and fire on file events, not before a prompt, and
+  its steering files (`.kiro/steering/*.md`) are per-workspace too. Both need
+  a per-project install, which deja does not have yet.

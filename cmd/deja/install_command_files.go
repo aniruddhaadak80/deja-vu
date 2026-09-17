@@ -84,6 +84,24 @@ func commandFilePath(harness string) string {
 		return crushCommandPath()
 	case "gemini":
 		return filepath.Join(sources.GeminiHome(), "commands", "deja.toml")
+	case "commandcode":
+		// `~/.commandcode/commands/<name>.md`, the name taken from the
+		// basename — the surface two independent integrations describe from
+		// the vendor's docs.
+		return filepath.Join(homeDir(), ".commandcode", "commands", "deja.md")
+	case "kilocode":
+		// Kilo's own workflows doc: global commands live in
+		// `~/.config/kilo/commands/`, project ones in `.kilo/commands/`, and a
+		// file named `deja.md` is invoked as `/deja`. XDG_CONFIG_HOME moves the
+		// config home the way it does for every other tool that keeps its
+		// directory there.
+		return filepath.Join(opencodeConfigHome(), "kilo", "commands", "deja.md")
+	case "gjc":
+		// Evidence for the directory is its own plugin marketplace's
+		// verification script (devswha/oh-my-gjc INSTALLATION.md), which after
+		// an install checks `$HOME/.gjc/agent/commands/<name>.md` and invokes
+		// the entries as `/omg:*`. Same shape as the others here.
+		return filepath.Join(sources.GjcConfigDir(), "commands", "deja.md")
 	case "omp":
 		// The active profile's agent directory; the default profile's is
 		// ~/.omp/agent. A named profile reads its own, which is why install

@@ -226,7 +226,7 @@
         "mcp": true,
         "auto": false,
         "skill": true,
-        "command": false,
+        "command": true,
         "resume": false,
         "handoff": "paste",
         "prereq": ""
@@ -235,10 +235,6 @@
         "auto": {
           "state": "impossible",
           "why": "VS Code Copilot Chat has no session-start or per-prompt hook, so there is nothing to install"
-        },
-        "command": {
-          "state": "todo",
-          "why": "Copilot Chat has no user-level command file deja knows how to write yet"
         },
         "resume": {
           "state": "impossible",
@@ -532,7 +528,7 @@
         "auto": false,
         "skill": true,
         "command": true,
-        "resume": false,
+        "resume": true,
         "handoff": "paste",
         "prereq": ""
       },
@@ -541,10 +537,6 @@
           "state": "blocked",
           "why": "Continue's CLI carries a Claude-shaped hooks system — Claude's own event set, additionalContext, settings read from ~/.continue/settings.json — and nothing fires it in the published release: measured on @continuedev/cli 1.5.47, hooks written for every event loaded (\"Hooks loaded: 8 handler(s)\" in its own log) and no handler ran, while the same run's tool call went through. Becomes work the day a release fires them",
           "source": "https://github.com/continuedev/continue/tree/main/extensions/cli/src/hooks"
-        },
-        "resume": {
-          "state": "todo",
-          "why": "The CLI has --resume for the last session and --fork <sessionId>, but nothing that takes the id of an arbitrary session; the editor reopens one from its history view"
         }
       }
     },
@@ -662,20 +654,16 @@
       "capabilities": {
         "mcp": true,
         "auto": false,
-        "skill": false,
+        "skill": true,
         "command": false,
         "resume": false,
         "handoff": "paste",
-        "prereq": "import the server once in Settings -> MCP"
+        "prereq": "import the server once in Settings -> MCP; enable the skill for the agent"
       },
       "gaps": {
         "auto": {
           "state": "impossible",
           "why": "Cherry Studio has no hook surface for a third party: it is an Electron app whose agent sessions run inside it, and the extension points are the MCP server list and its import paths (#3644)."
-        },
-        "skill": {
-          "state": "todo",
-          "why": "No skill channel found: the app loads no user-level instructions file a third party can write, so guidance reaches the model through the MCP tool descriptions (#3644)."
         },
         "command": {
           "state": "impossible",
@@ -715,20 +703,20 @@
           "why": "Nobody can say what Senpi's config surface is: no public source, documentation or package for Senpi (OmO Native) was found — only its transcript format, which is pi's. `unknown` rather than `todo` because the work cannot start until there is something to read against (#3651)."
         },
         "auto": {
-          "state": "todo",
-          "why": "No hook surface read from the tool's own source yet (#3647)."
+          "state": "unknown",
+          "why": "pi's own injection point is the `before_agent_start` extension event, and Senpi kept pi's transcript format; whether it kept the extension loader, and where it looks for extensions, is not knowable from the transcripts alone (#3651)."
         },
         "skill": {
-          "state": "todo",
-          "why": "No skill channel written yet; the reader came first (#3647)."
+          "state": "unknown",
+          "why": "Same as the rest of Senpi: pi reads skills from its agent directory, and whether Senpi kept that path — or renamed it the way it renamed the session root — cannot be checked without a source or an install (#3651)."
         },
         "command": {
-          "state": "todo",
-          "why": "No slash command yet (#3647)."
+          "state": "unknown",
+          "why": "No public source, documentation or package for Senpi was found at all, so nothing can be said about a command surface. Its pi lineage suggests commands are registered by extensions rather than read from files, which is a lead and not a location (#3651)."
         },
         "resume": {
-          "state": "todo",
-          "why": "No resume command verified here, so a handover is a paste (#3647)."
+          "state": "unknown",
+          "why": "No CLI documentation to read a resume flag from. pi's own is `pi --session <id>`, and assuming Senpi's is the same is how deja would print a command that does nothing (#3651)."
         }
       }
     },
@@ -746,34 +734,19 @@
       "last_verified": "2026-09-16",
       "display_name": "gajae-code",
       "capabilities": {
-        "mcp": false,
+        "mcp": true,
         "auto": false,
-        "skill": false,
-        "command": false,
-        "resume": false,
+        "skill": true,
+        "command": true,
+        "resume": true,
         "handoff": "paste",
         "prereq": "none"
       },
       "gaps": {
-        "mcp": {
-          "state": "todo",
-          "why": "Read support only for now; the reader landed first (#3647)."
-        },
         "auto": {
           "state": "todo",
-          "why": "No hook surface read from the tool's own source yet (#3647)."
-        },
-        "skill": {
-          "state": "todo",
-          "why": "No skill channel written yet (#3647)."
-        },
-        "command": {
-          "state": "todo",
-          "why": "No slash command yet (#3647)."
-        },
-        "resume": {
-          "state": "todo",
-          "why": "No resume command verified here, so a handover is a paste (#3647)."
+          "why": "Settled against the loader rather than the docs, which disagree: `resolveScopePaths` in packages/coding-agent/src/customization/types.ts puts the user-scope hooks at `<getAgentDir()>/hooks/<pre|post>`, so `~/.gjc/agent/hooks/pre` is the path and docs/hooks.md's `~/.gjc/hooks` is stale. What stops a hook being written there is the shape: a directory hook is a TypeScript module exporting `default (api) => api.on(\"tool_call\", …)`, and the only documented return is `{block, reason}` — allow or refuse, with no channel for adding context, which is what deja's tool hook exists to do. The lifecycle events (`session_start`, `before_agent_start`) come from the in-process HookAPI, which is the plugin surface rather than the directory, so auto-recall here is a gjc plugin and not a file (#3651).",
+          "source": "https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/examples/gjc-hooks/pre/bash.ts"
         }
       }
     },
@@ -791,34 +764,29 @@
       "display_name": "Kimchi Coding",
       "last_verified": "2026-09-16",
       "capabilities": {
-        "mcp": false,
+        "mcp": true,
         "auto": false,
         "skill": false,
         "command": false,
-        "resume": false,
+        "resume": true,
         "handoff": "paste",
         "prereq": "none"
       },
       "gaps": {
-        "mcp": {
-          "state": "todo",
-          "why": "Read support only for now: the reader landed first because a store nobody reads is history nobody can search (#3647)."
-        },
         "auto": {
-          "state": "todo",
-          "why": "No hook surface read from the tool's own source yet (#3647)."
+          "state": "blocked",
+          "why": "Kimchi can run the hooks `deja install claude` already writes, through a compatibility extension that ships disabled: `kimchi resources enable extensions.claude-code-hook-adapter`. That switch is the user's, so deja records it rather than claiming auto-recall (docs/hooks.md).",
+          "source": "https://github.com/getkimchi/kimchi/blob/main/docs/hooks.md"
         },
         "skill": {
-          "state": "todo",
-          "why": "No skill channel written yet; the reader came first (#3647)."
+          "state": "blocked",
+          "why": "Same shape: `extensions.claude-code-skills` loads ~/.claude/skills — where deja already writes — and also ships disabled (#3651).",
+          "source": "https://github.com/getkimchi/kimchi/blob/main/docs/hooks.md"
         },
         "command": {
-          "state": "todo",
-          "why": "No slash command yet (#3647)."
-        },
-        "resume": {
-          "state": "todo",
-          "why": "No resume command verified here, so a handover is a paste (#3647)."
+          "state": "blocked",
+          "why": "In Kimchi a skill is the command: `extensions.claude-code-skills` contributes skills through Pi resource discovery so `/skill:<name>` works, and it ships disabled. So this is not a second file to write — it is the same switch the skill waits on, and a command file of our own would add an entry nothing reads (#3651).",
+          "source": "https://github.com/getkimchi/kimchi/blob/main/docs/hooks.md"
         }
       }
     },
@@ -836,35 +804,18 @@
       "display_name": "Command Code",
       "last_verified": "2026-09-16",
       "capabilities": {
-        "mcp": false,
-        "auto": false,
-        "skill": false,
-        "command": false,
+        "mcp": true,
+        "auto": true,
+        "skill": true,
+        "command": true,
         "resume": false,
         "handoff": "paste",
         "prereq": "none"
       },
       "gaps": {
-        "mcp": {
-          "state": "todo",
-          "why": "Reported to read `~/.commandcode/mcp.json`, with four lifecycle hook events in `~/.commandcode/settings.json` whose SessionStart injects. That is one third party's matrix and the CLI is closed, so nothing is written until a live install confirms the path: a config file at a guessed location is a capability the matrix would be claiming falsely (#3651).",
-          "source": "https://github.com/akitaonrails/ai-memory/blob/main/docs/support-matrix.md"
-        },
-        "auto": {
-          "state": "todo",
-          "why": "No hook surface read from the tool's own source yet (#3647)."
-        },
-        "skill": {
-          "state": "todo",
-          "why": "No skill channel written yet; the reader came first (#3647)."
-        },
-        "command": {
-          "state": "todo",
-          "why": "No slash command yet (#3647)."
-        },
         "resume": {
-          "state": "todo",
-          "why": "No resume command verified here, so a handover is a paste (#3647)."
+          "state": "unknown",
+          "why": "No resume flag is described by either integration that documents the rest of Command Code's surfaces, and the CLI is closed, so there is nothing to read one out of. A live install answers it in one `--help` (#3651)."
         }
       }
     },
@@ -882,8 +833,8 @@
       "display_name": "ZCode",
       "last_verified": "2026-09-16",
       "capabilities": {
-        "mcp": false,
-        "auto": false,
+        "mcp": true,
+        "auto": true,
         "skill": false,
         "command": false,
         "resume": false,
@@ -891,26 +842,19 @@
         "prereq": "none"
       },
       "gaps": {
-        "mcp": {
-          "state": "blocked",
-          "why": "ZCode's server map (`mcp.servers` in ~/.zcode/cli/config.json) takes a strict `type`/`url`/`headers` shape — an HTTP endpoint — and deja's server is a local stdio process, so there is nothing to write there. The way in is its hook block, whose SessionStart injects through `hookSpecificOutput.additionalContext`, the shape Claude Code uses. Both read from a third party's live-verified integration matrix rather than from this machine (#3651).",
-          "source": "https://github.com/akitaonrails/ai-memory/blob/main/docs/support-matrix.md"
-        },
-        "auto": {
-          "state": "todo",
-          "why": "No hook surface read from the tool's own source yet (#3647)."
-        },
         "skill": {
-          "state": "todo",
-          "why": "No skill channel written yet; the reader came first (#3647)."
+          "state": "unknown",
+          "why": "Nothing found names a user-level skill directory for ZCode. Its extension surface, as inspected by the memory plugin that got there first, is the hook block and the server map in `~/.zcode/cli/config.json` plus a plugin manifest probe order; guidance therefore reaches the model through the MCP tool descriptions and the injected session block (#3651).",
+          "source": "https://github.com/volcengine/OpenViking/blob/main/examples/agent-hook-plugin/DESIGN.md"
         },
         "command": {
-          "state": "todo",
-          "why": "No slash command yet (#3647)."
+          "state": "unknown",
+          "why": "Nothing found names a custom-command surface in ZCode. What is documented by a third party is its hook block and a strict HTTP-only server map, so the work here is auto-recall through the hooks rather than a command file (#3651)."
         },
         "resume": {
-          "state": "todo",
-          "why": "No resume command verified here, so a handover is a paste (#3647)."
+          "state": "unknown",
+          "why": "The flag is real — `--resume <SESSION_ID>` appears in ZCode's headless contract, and the session id it takes is the one its JSON summary reports — but every documented invocation runs the app bundle's own Electron runtime with a mandatory `--prompt`, which is a turn rather than reopening a session for a person to continue. Whether the `zcode` launcher on PATH accepts the same flag on its own is unverified, and printing a command that needs a prompt would be worse than the paste (#3651).",
+          "source": "https://github.com/Q00/ouroboros/blob/main/docs/runtime-guides/zcode.md"
         }
       }
     },
@@ -931,34 +875,27 @@
       "last_verified": "2026-09-16",
       "display_name": "Kiro",
       "capabilities": {
-        "mcp": false,
+        "mcp": true,
         "auto": false,
         "skill": false,
         "command": false,
-        "resume": false,
+        "resume": true,
         "handoff": "paste",
         "prereq": "none"
       },
       "gaps": {
-        "mcp": {
-          "state": "todo",
-          "why": "Read support only for now. Kiro takes MCP servers in ~/.kiro/settings/mcp.json and agent hooks in .kiro/hooks, so the wiring exists to be written; the reader landed first because a store nobody reads is history nobody can search (#3103)."
-        },
         "auto": {
           "state": "todo",
-          "why": "Kiro's agent hooks are per-workspace and event-driven, and whether one fires before a prompt is unverified here — the app is not on this machine (#3103)."
+          "why": "Kiro's agent hooks are per-workspace and fire on file events (`.kiro/hooks/`), not before a prompt, so there is no session-start surface a global install can write. Its steering files (`.kiro/steering/*.md`) are the per-workspace channel and would need a per-project install (#3651)."
         },
         "skill": {
-          "state": "todo",
-          "why": "No skill or steering file written yet; the reader came first (#3103)."
+          "state": "impossible",
+          "why": "Kiro has a user-level guidance channel and deja writes it — `~/.kiro/steering/deja.md`, the global half of steering, scanned for every project — but it is not a skill and calling it one would misdescribe what it costs. A steering document declares an inclusion mode, and the only mode measured as loaded by kiro-cli is `always`: `manual` is not loaded and cannot be invoked from a session, `fileMatch` was withheld (KiroCrew's steering reference, measured against 2.19.1). So the text rides in front of every turn whether it is wanted or not, which is why deja's file there is four lines rather than the skill it writes where one is loaded on demand — the same call aider's entry makes (#3651).",
+          "source": "https://github.com/kirodotdev/KiroCrew/blob/main/docs/reference/kiro-cli/steering.md"
         },
         "command": {
-          "state": "todo",
-          "why": "No slash command yet (#3103)."
-        },
-        "resume": {
-          "state": "todo",
-          "why": "`kiro-cli chat --resume-id <sessionId>` is documented and unverified here, so deja hands the session over by paste rather than claiming a command it has not run (#3103)."
+          "state": "unknown",
+          "why": "Kiro's upstream — Amazon Q Developer CLI — keeps user-level custom prompts in `~/.aws/amazonq/prompts` (`crates/chat-cli/src/util/paths.rs`), but Kiro renamed its config tree rather than moving it wholesale: its server file is `~/.kiro/settings/mcp.json`, not the Q path. So the location of Kiro's equivalent cannot be inferred from the fork, and writing a guessed directory would leave a command nothing lists (#3651)."
         }
       }
     },
@@ -983,8 +920,8 @@
         "mcp": true,
         "auto": false,
         "skill": true,
-        "command": false,
-        "resume": false,
+        "command": true,
+        "resume": true,
         "handoff": "paste",
         "prereq": "sqlite3 for the CLI store"
       },
@@ -993,14 +930,6 @@
           "state": "blocked",
           "why": "Kilo Code has no hook surface: a search of Kilo-Org/kilocode finds none, and the extension is a Roo fork whose hooks are still in flight upstream (Roo PRs #10785, #11128, #11663). Recall arrives when the model calls the tool rather than on its own (#3643).",
           "source": "https://github.com/RooCodeInc/Roo-Code/pull/11663"
-        },
-        "command": {
-          "state": "todo",
-          "why": "No slash command yet. Kilo reads skills from ~/.kilocode/skills, ~/.kilo/skills and the project tree, which is the channel deja writes; a command would be a second one (#3643)."
-        },
-        "resume": {
-          "state": "todo",
-          "why": "Kilo's CLI can reopen a session and the flag has not been verified here; the extension's tasks reopen from its own history view. The same split Roo has, where deja prints a command only for the half it can (#3643)."
         }
       }
     },

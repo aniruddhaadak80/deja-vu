@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/vshulcz/deja-vu/internal/model"
+	"github.com/vshulcz/deja-vu/internal/sources"
 )
 
 type capRegistry struct {
@@ -105,10 +106,23 @@ func TestCapabilityRegistryMatchesCode(t *testing.T) {
 		if h.ID == "grok" {
 			gotSkill = true
 		}
-		// Kilo Code reads skills from ~/.kilocode/skills rather than from an
-		// instructions file, so the check is the path install writes.
-		if h.ID == "kilocode" {
-			gotSkill = strings.HasSuffix(kilocodeSkillPath(), filepath.Join("skills", "deja-search", "SKILL.md"))
+		// Kilo Code and gajae-code read skills from a directory of their own
+		// rather than from an instructions file, so the check is the path
+		// install writes — and both go through the shared skill installer, so
+		// one rule covers them.
+		for _, own := range []struct {
+			id   string
+			path string
+		}{{"kilocode", kilocodeSkillPath()}, {"gjc", gjcSkillPath()},
+			// Cherry Studio discovers the skill directories of the agent CLIs a
+			// machine has, `~/.agents/skills` among them, so deja's shared skill
+			// is what it lists — it has no directory of its own.
+			{"cherrystudio", sharedSkillPath()},
+			{"commandcode", commandCodeSkillPath()}} {
+			if h.ID == own.id {
+				gotSkill = strings.Contains(own.path, filepath.Join("skills", "deja-search")) ||
+					strings.Contains(own.path, filepath.Join("skills", "deja-history"))
+			}
 		}
 		// Cline has no user-level instructions file at all, so its skill rides
 		// inside the plugin deja generates. Read that off the generated
@@ -151,6 +165,10 @@ func TestCapabilityRegistryMatchesCode(t *testing.T) {
 			// Continue declares its slash commands in the assistant config, as
 			// `prompts:`, so the artifact to read is the config deja writes.
 			gotCommand = strings.Contains(continueInstalledConfig(t, "/bin/deja"), "- name: deja")
+		case "copilot-chat":
+			// Copilot Chat has no commands directory; its command is a prompt
+			// file, which is what the artifact check reads.
+			gotCommand = strings.Contains(copilotChatPrompt("/bin/deja"), "description:")
 		case "antigravity", "openclaw", "codex", "qwen", "kimi", "copilot", "grok", "zed":
 			// These make a skill invocable by name, so the skill deja installs
 			// is the command and a second file would only add another entry.
@@ -178,8 +196,9 @@ func TestCapabilityRegistryMatchesCode(t *testing.T) {
 		// Fixed order, not a map range: with a map the first of several bad
 		// entries to fail is whichever came up, and the rest stay hidden until
 		// the next run reports a different one.
-		have := map[string]bool{"mcp": c.MCP, "auto": c.Auto, "skill": c.Skill, "command": c.Command}
-		for _, cap := range []string{"mcp", "auto", "skill", "command"} {
+		have := map[string]bool{"mcp": c.MCP, "auto": c.Auto, "skill": c.Skill, "command": c.Command,
+			"resume": c.Resume}
+		for _, cap := range []string{"mcp", "auto", "skill", "command", "resume"} {
 			have := have[cap]
 			g, ok := h.Gaps[cap]
 			if have {
@@ -194,8 +213,28 @@ func TestCapabilityRegistryMatchesCode(t *testing.T) {
 			if !gapStates[g.State] {
 				t.Fatalf("%s: %s gap state %q is not one of todo/impossible/blocked/unknown", h.ID, cap, g.State)
 			}
-			if strings.TrimSpace(g.Why) == "" {
+			why := strings.TrimSpace(g.Why)
+			if why == "" {
 				t.Fatalf("%s: %s gap has no why", h.ID, cap)
+			}
+			// A reason has to say something. "No slash command yet." passed the
+			// check above on eight entries and told a reader nothing they could
+			// act on — not the surface, not what is missing, not what would
+			// close it. The floor is a sentence that names the shape of the
+			// problem, and a reference so the trail is followable.
+			if len(why) < 60 {
+				t.Fatalf("%s: %s gap why is %d characters (%q) — say what the surface is and what is missing",
+					h.ID, cap, len(why), why)
+			}
+			// Work has to be followable: a `todo` somebody could pick up, and an
+			// `unknown` somebody could go and find out, both need an issue or a
+			// link. `impossible` is a fact about the harness and carries its own
+			// explanation; `blocked` already needs the source link above.
+			if g.State == "todo" || g.State == "unknown" {
+				if !strings.Contains(why, "#") && !strings.HasPrefix(g.Source, "http") {
+					t.Fatalf("%s: %s is %s and cites neither an issue nor a source: %q",
+						h.ID, cap, g.State, why)
+				}
 			}
 			// "Blocked" is a claim about someone else's bug, so it has to point
 			// at it — otherwise nobody can tell when it stops being true.
@@ -279,6 +318,12 @@ func plausibleSession(t *testing.T, harness string) model.Session {
 		}
 		t.Setenv("DEJA_ROO_CLI_ROOT", root)
 		s.Path = filepath.Join(dir, "api_conversation_history.json")
+	}
+	if harness == "kilocode" {
+		// Only the CLI half of Kilo's store resumes, and the reader tells the
+		// two apart by the path: the database is the CLI's, a task file under
+		// globalStorage is the extension's.
+		s.Path = sources.KiloDB()
 	}
 	if harness == "crush" {
 		// Crush names sessions with a uuid and runs `--session` in the
