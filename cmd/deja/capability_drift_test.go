@@ -106,23 +106,15 @@ func TestCapabilityRegistryMatchesCode(t *testing.T) {
 		if h.ID == "grok" {
 			gotSkill = true
 		}
-		// Kilo Code and gajae-code read skills from a directory of their own
-		// rather than from an instructions file, so the check is the path
-		// install writes — and both go through the shared skill installer, so
-		// one rule covers them.
-		for _, own := range []struct {
-			id   string
-			path string
-		}{{"kilocode", kilocodeSkillPath()}, {"gjc", gjcSkillPath()},
-			// Cherry Studio discovers the skill directories of the agent CLIs a
-			// machine has, `~/.agents/skills` among them, so deja's shared skill
-			// is what it lists — it has no directory of its own.
-			{"cherrystudio", sharedSkillPath()},
-			{"commandcode", commandCodeSkillPath()}} {
-			if h.ID == own.id {
-				gotSkill = strings.Contains(own.path, filepath.Join("skills", "deja-search")) ||
-					strings.Contains(own.path, filepath.Join("skills", "deja-history"))
-			}
+		// Kilo Code, gajae-code, Command Code and Cherry Studio read skills
+		// from a directory rather than from an instructions file, and their own
+		// install target writes the file — the same table doctor's guidance
+		// column reads. Kiro is in it too and is not a skill: a steering file
+		// is always included rather than opened by name, so the path has to say
+		// which kind it is.
+		if own := ownGuidanceFile(h.ID); own != "" {
+			gotSkill = strings.Contains(own, filepath.Join("skills", "deja-search")) ||
+				strings.Contains(own, filepath.Join("skills", "deja-history"))
 		}
 		// Cline has no user-level instructions file at all, so its skill rides
 		// inside the plugin deja generates. Read that off the generated
@@ -169,7 +161,7 @@ func TestCapabilityRegistryMatchesCode(t *testing.T) {
 			// Copilot Chat has no commands directory; its command is a prompt
 			// file, which is what the artifact check reads.
 			gotCommand = strings.Contains(copilotChatPrompt("/bin/deja"), "description:")
-		case "antigravity", "openclaw", "codex", "qwen", "kimi", "copilot", "grok", "zed":
+		case "antigravity", "openclaw", "codex", "qwen", "kimi", "copilot", "grok", "zed", "gemini":
 			// These make a skill invocable by name, so the skill deja installs
 			// is the command and a second file would only add another entry.
 			// OpenClaw reports "Available as command: yes"; `agy plugin
@@ -179,7 +171,12 @@ func TestCapabilityRegistryMatchesCode(t *testing.T) {
 			// /skill:<name>; Copilot invokes /<skill-name>. Grok Build lists
 			// skills with user-invocable frontmatter and an argument hint for
 			// its slash-command autocomplete. Zed lists skills under `/` and
-			// invokes them by their frontmatter name.
+			// invokes them by their frontmatter name. Gemini is the one
+			// measured by its own complaint: with a command file of ours
+			// present it printed "Skill command '/deja-search' was renamed to
+			// '/deja-search1'", which is proof both that the skill is a
+			// command there and that a file beside it is one entry too many
+			// (#3665).
 			gotCommand = gotSkill
 		default:
 			// The rest read a command from a file, so the claim is whether we

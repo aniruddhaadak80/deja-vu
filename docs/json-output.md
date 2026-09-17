@@ -382,6 +382,18 @@ appears only after `deja embed` has built a semantic sidecar. The heatmap grid u
       "binary_missing": true
     }
   ],
+  "commands": [
+    {
+      "name": "claude-code",
+      "state": "written",
+      "path": "/home/user/.claude/commands/deja.md"
+    },
+    {
+      "name": "cursor",
+      "state": "missing",
+      "path": "/home/user/.cursor/commands/deja.md"
+    }
+  ],
   "sqlite3": {"state": "ok"},
   "git": {"state": "ok"},
   "version": {
@@ -472,6 +484,14 @@ without anyone asking, one row per harness deja can wire. `state` is `wired`,
 integration looks), `missing`, or `plugin` (the harness carries its own).
 `binary_missing` marks a row whose entries name a deja binary that is no longer
 there — what an upgrade leaves behind, with every hook exiting 127.
+
+`commands` is the third thing an install writes: the `/deja` a user types, one
+row per harness that reads a command from a file. `state` is `written`,
+`missing`, or `someone else's` for a file under that name deja did not write.
+`path` is worth reading rather than assuming: the file is not called `deja` in
+every harness, and some harnesses have no row at all because their skills are
+already invocable as commands — Gemini among them, where a file beside the
+skill got renamed by Gemini itself.
 
 The first two rows are `claude-code` and `codex-hook`, whose hooks are wired
 event by event, so they have two states of their own: `out of date` (some of the

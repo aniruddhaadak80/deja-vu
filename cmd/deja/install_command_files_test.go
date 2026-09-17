@@ -11,11 +11,11 @@ import (
 // is not rejected — it is simply never offered when someone types "/".
 func TestCommandFilesMatchEachHarnessShape(t *testing.T) {
 	hermeticEnv(t)
-	// A Windows path is the interesting case for the TOML one: backslashes are
-	// escape sequences inside a basic string, so C:\Users would have produced
-	// a file Gemini cannot parse at all.
+	// A Windows path is run through as well: it is the shape that broke the
+	// TOML file Gemini used to get, and the markdown ones have to survive it
+	// too.
 	for _, exe := range []string{"/bin/deja", `C:\Users\vlad\deja.exe`} {
-		for _, h := range []string{"opencode", "cursor", "roo", "gemini"} {
+		for _, h := range []string{"opencode", "cursor", "roo", "kilocode"} {
 			r, err := installCommandFile(h, exe, false)
 			if err != nil || r.Path == "" {
 				t.Fatalf("%s command = %#v, %v", h, r, err)
@@ -28,24 +28,17 @@ func TestCommandFilesMatchEachHarnessShape(t *testing.T) {
 			if !strings.Contains(body, exe) {
 				t.Errorf("%s command does not name the binary:\n%s", h, body)
 			}
-			if h == "gemini" {
-				// Gemini reads TOML with a prompt key, and substitutes {{args}}.
-				// Without the placeholder it appends the user's words as a separate
-				// paragraph, which reads as an unrelated instruction.
-				if !strings.HasPrefix(body, "description = ") || !strings.Contains(body, "prompt = ") {
-					t.Errorf("gemini command is not the documented TOML shape:\n%s", body)
+			if h == "cursor" {
+				// Cursor reads the description off the first line and shows
+				// `---` for a file that opens with frontmatter — measured in
+				// its own palette against two project commands (#3666).
+				if strings.HasPrefix(body, "---\n") {
+					t.Errorf("cursor command opens with frontmatter, which it shows as its description:\n%s", body)
 				}
-				if !strings.Contains(body, "{{args}}") {
-					t.Errorf("gemini command has no {{args}} placeholder:\n%s", body)
+				if !strings.HasPrefix(body, "Search this machine's past AI coding sessions") {
+					t.Errorf("cursor command does not open with its description:\n%s", body)
 				}
-				// A literal string, not a basic one: this is what keeps a
-				// Windows path from being read as escape sequences.
-				if strings.Contains(body, "\"\"\"") || !strings.Contains(body, "'''") {
-					t.Errorf("gemini prompt is not a TOML literal string:\n%s", body)
-				}
-				continue
-			}
-			if !strings.HasPrefix(body, "---\n") || !strings.Contains(body, "description:") {
+			} else if !strings.HasPrefix(body, "---\n") || !strings.Contains(body, "description:") {
 				t.Errorf("%s command has no markdown frontmatter:\n%s", h, body)
 			}
 			if !strings.Contains(body, "$ARGUMENTS") {

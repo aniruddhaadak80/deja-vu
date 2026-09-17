@@ -120,6 +120,8 @@ func runDoctor(w io.Writer, args []string, lookup doctorVersionLookup, dir strin
 	fmt.Fprintln(w)
 	doctorMCP(w)
 	fmt.Fprintln(w)
+	doctorCommands(w)
+	fmt.Fprintln(w)
 	doctorPeers(w, dir, time.Now())
 	fmt.Fprintln(w)
 	doctorHooks(w)
@@ -299,6 +301,13 @@ func doctorCodexHook(w io.Writer) {
 	}
 	if status == "untrusted" {
 		line += "  (codex has not been shown it — open codex once and approve it, or run /hooks; until then `codex exec` runs no hook at all)"
+	}
+	// Trust is per hook there, so a machine can have one approved hook and
+	// four that codex refuses to run — which it says on its own first screen
+	// and this row used to call `wired` (#3654).
+	if status == "wired" && st.pinned > 0 && st.approved < st.pinned {
+		line += fmt.Sprintf("\n               %d of %d hooks approved — codex runs only those; open codex once and approve the rest (/hooks)",
+			st.approved, st.pinned)
 	}
 	if status == "disabled" {
 		line += "  (codex trusts but disabled it — re-enable in codex settings or hooks.state)"
@@ -1192,6 +1201,20 @@ func doctorMCP(w io.Writer) {
 			if missing := dejaCommandMissing(c.path); missing != "" {
 				fmt.Fprintf(w, "  %-12s %s\n", "",
 					"points at "+missing+", which is not there — `deja install "+c.name+"` rewrites it for this binary")
+			} else if other := otherBinaryNote(c.path, c.name); other != "" {
+				// The quieter half: the binary is there and is neither this one
+				// nor the deja on PATH. Two harnesses on the machine this was
+				// found on pointed at builds left behind by probe runs, and
+				// both rows read `wired` (#3656).
+				fmt.Fprintf(w, "  %-12s %s\n", "", other)
+			}
+		}
+		// Zed's entry can defer to an extension instead of naming a binary,
+		// and then "wired" is a fact about an id rather than about anything
+		// runnable (#3660).
+		if status == "wired" && c.name == "zed" {
+			if note := zedUnreachableNote(c.path); note != "" {
+				fmt.Fprintf(w, "  %-12s %s\n", "", note)
 			}
 		}
 		if note := doctorWiringNote(c.name); note != "" && status == "wired" {
@@ -1247,15 +1270,33 @@ func dejaCommandIn(path string) string {
 	}
 	var root map[string]any
 	if json.Unmarshal(b, &root) == nil {
-		for _, key := range []string{"mcpServers", "mcp", "servers"} {
-			m, _ := root[key].(map[string]any)
+		for _, m := range mcpServerMaps(root) {
 			for _, v := range m {
 				if cmd := mcpEntryDejaCommand(v); cmd != "" {
 					return cmd
 				}
 			}
+			// Nothing recognised by name. An entry under the key deja writes
+			// is deja's own whatever binary it happens to run — a build called
+			// `deja-probe` or `deja-cont` is what a `go build -o` leaves, and
+			// an entry naming one was invisible to every check here while the
+			// row still said wired (#3659).
+			if v, ok := m["deja"]; ok {
+				if cmd := mcpEntryCommand(v); cmd != "" {
+					return cmd
+				}
+			}
 		}
 		return ""
+	}
+	// The attributed read first. The scan below takes any `command` in the file
+	// whose value looks like deja, and goose keeps a `slash_commands` list at
+	// the bottom of the same config with `- command: "deja"` in it — so the
+	// scan answered with the name of a slash command and the MCP entry three
+	// lines from the top, pointing at a build in a scratch directory, was never
+	// looked at (#3662).
+	if cmd := dejaKeyedCommand(string(b)); cmd != "" {
+		return cmd
 	}
 	for _, m := range commandValue.FindAllStringSubmatch(string(b), -1) {
 		// One group per quoting, so a quote inside a value cannot end it: a
@@ -1280,6 +1321,26 @@ func dejaCommandIn(path string) string {
 		}
 	}
 	return ""
+}
+
+// mcpServerMaps returns every map of servers a config might keep them in. The
+// three top-level spellings, and `mcp.servers` one level deeper — which is
+// OpenClaw's and ZCode's shape, and was read as an entry rather than as a map
+// of them, so no check here could see the binary either of those two runs
+// (#3663).
+func mcpServerMaps(root map[string]any) []map[string]any {
+	var out []map[string]any
+	for _, key := range []string{"mcpServers", "mcp", "servers"} {
+		m, _ := root[key].(map[string]any)
+		if m == nil {
+			continue
+		}
+		out = append(out, m)
+		if nested, ok := m["servers"].(map[string]any); ok {
+			out = append(out, nested)
+		}
+	}
+	return out
 }
 
 // quotedPathUnescape undoes what a quoted string does to a Windows path. Only
@@ -1333,16 +1394,132 @@ func mcpEntryDejaCommand(v any) string {
 	return ""
 }
 
+// mcpEntryCommand is mcpEntryDejaCommand without the name test: the command an
+// entry runs, whatever it is called. Only callers that already know the entry
+// is deja's — because it sits under the key deja writes — may use it.
+func mcpEntryCommand(v any) string {
+	m, _ := v.(map[string]any)
+	if m == nil {
+		return ""
+	}
+	switch c := m["command"].(type) {
+	case string:
+		return strings.TrimSpace(c)
+	case []any:
+		for _, item := range c {
+			if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+				return strings.TrimSpace(s)
+			}
+		}
+	}
+	if t, ok := m["transport"].(map[string]any); ok {
+		return mcpEntryCommand(t)
+	}
+	return ""
+}
+
+// dejaKeyedCommand is the same claim for the formats read as text: the line that
+// names deja, then the first `command` inside the block it opens. Hermes keeps
+// its servers in YAML and named one `deja-cont`, which nothing here could see
+// (#3659).
+//
+// Two kinds of anchor, because the block is shaped differently under each. A
+// mapping key (`deja:`) has its fields indented below it. A TOML table header
+// and a `serverName:` field both sit *beside* the command instead — TOML puts
+// every key of a table at the header's own indent, and dsh names the server in
+// a field of the row it belongs to — so for those the block is the run of
+// siblings until the next table header or a line further out.
+func dejaKeyedCommand(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		opens, beside := dejaBlockOpens(trimmed)
+		if !opens {
+			continue
+		}
+		indent := yamlIndentWidth(line)
+		for _, next := range lines[i+1:] {
+			nextTrimmed := strings.TrimSpace(next)
+			if nextTrimmed == "" {
+				continue
+			}
+			if outOfDejasBlock(next, nextTrimmed, indent, beside) {
+				break
+			}
+			if m := commandValue.FindStringSubmatch(next); m != nil {
+				for _, group := range m[1:] {
+					if v := strings.TrimSpace(group); v != "" {
+						return quotedPathUnescape.Replace(v)
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// outOfDejasBlock reports whether a line has left the block the anchor opened.
+//
+// For an anchor whose fields sit beside it, only a new table header or a line
+// further out ends the block: the old rule stopped at the first sibling that
+// was not `command`, which for codex's `[mcp_servers.deja]` is `type = "stdio"`
+// on the very next line — so a codex config whose command is not the first key
+// read as though it named no binary at all, and the row said `wired` about a
+// build in a scratch directory (#3668).
+func outOfDejasBlock(line, trimmed string, indent int, beside bool) bool {
+	if beside {
+		if strings.HasPrefix(trimmed, "[") {
+			return true
+		}
+		return yamlIndentWidth(line) < indent
+	}
+	if yamlIndentWidth(line) > indent || strings.HasPrefix(trimmed, "-") {
+		return false
+	}
+	if strings.HasPrefix(trimmed, "[") || strings.Contains(trimmed, ":") || strings.Contains(trimmed, "=") {
+		return !strings.HasPrefix(trimmed, "command")
+	}
+	return false
+}
+
+// dejaBlockOpens reports whether a line starts the block that belongs to deja,
+// and whether that block's keys sit beside the anchor rather than under it. A
+// mapping key indents its fields below; a TOML table header does not, and dsh
+// has no server key at all — the name is a field inside a patch-list row,
+// beside the command rather than above it.
+func dejaBlockOpens(trimmed string) (opens, beside bool) {
+	switch trimmed {
+	case "deja:":
+		return true, false
+	case "[mcp_servers.deja]", "[mcp.servers.deja]",
+		"serverName: deja", `serverName: "deja"`, "serverName: 'deja'":
+		return true, true
+	}
+	return false, false
+}
+
 // doctorWiringNote adds what "wired" cannot promise for a given harness. Three
 // CLIs share ~/.grok and read different files; one of them — @vibe-kit/grok-cli
 // — has no user-level MCP config at all, so `grok mcp list` reports nothing no
 // matter what an installer writes to the home directory. Saying "wired" without
 // that caveat is how someone concludes deja is broken.
 func doctorWiringNote(name string) string {
-	if name != "grok" {
-		return ""
+	switch name {
+	case "grok":
+		return "@vibe-kit/grok-cli reads MCP only from <cwd>/.grok/settings.json — run `grok mcp add deja -c deja -a mcp` in a project to wire that one"
+	case "cherrystudio":
+		// The only target whose "wired" is about a file the app has not read
+		// yet: Cherry Studio keeps its servers in an app database with no
+		// config file to write, so the install writes the JSON its importer
+		// takes and the row must not be read as "the app has it".
+		return "Cherry Studio has no config file to write — this is the JSON to import in Settings → MCP → Import from JSON"
+	case "roo", "kilocode":
+		// One settings file per VS Code-compatible host, and the path above is
+		// whichever one exists. `deja install` writes every host that has the
+		// extension; the row can only speak for one.
+		return "one settings file per editor — `deja install " + name + "` writes every host that has the extension"
 	}
-	return "@vibe-kit/grok-cli reads MCP only from <cwd>/.grok/settings.json — run `grok mcp add deja -c deja -a mcp` in a project to wire that one"
+	return ""
 }
 
 type doctorMCPConfig struct {
@@ -1379,7 +1556,86 @@ func doctorMCPConfigs() []doctorMCPConfig {
 		{"continue", continueConfigPath(), doctorContinueWired, nil},
 		{"crush", crushConfigPath(), doctorJSONWired("mcp"), doctorJSONDejaKeys("mcp")},
 		{"zed", sources.ZedSettingsPath(), doctorZedWired, nil},
+		// The nine targets `deja install` has always had and this table never
+		// named. A row here is the only place a machine says whether the
+		// server is declared and which binary it runs, so for these the report
+		// said nothing at all — deepseek's entry on the author's machine still
+		// pointed at a throwaway build with every other row repaired.
+		{"deepseek", dshPatchPath(), doctorDSHWired, nil},
+		{"roo", doctorFirstExisting(rooMCPSettingsPaths(), vsCodeExtensionMCPPath(sources.RooExtensionID)), doctorJSONWired("mcpServers"), doctorJSONDejaKeys("mcpServers")},
+		{"kilocode", doctorFirstExisting(kilocodeMCPSettingsPaths(), vsCodeExtensionMCPPath(sources.KiloExtensionID)), doctorJSONWired("mcpServers"), doctorJSONDejaKeys("mcpServers")},
+		{"kiro", kiroMCPSettingsPath(), doctorJSONWired("mcpServers"), doctorJSONDejaKeys("mcpServers")},
+		{"kimchi", kimchiMCPPath(), doctorJSONWired("mcpServers"), doctorJSONDejaKeys("mcpServers")},
+		{"gjc", gjcMCPPath(), doctorJSONWired("mcpServers"), doctorJSONDejaKeys("mcpServers")},
+		{"zcode", zcodeConfigPath(), doctorZCodeWired, nil},
+		{"commandcode", commandCodeMCPPath(), doctorJSONWired("mcpServers"), doctorJSONDejaKeys("mcpServers")},
+		{"cherrystudio", cherryStudioImportPath(), doctorFileWired, nil},
 	}
+}
+
+// dshPatchPath is the home-level patch layer installDeepSeek writes.
+func dshPatchPath() string {
+	return filepath.Join(sources.DSHHome(), "cordis.patch.yml")
+}
+
+// doctorDSHWired reads the layer for deja's own block rather than for a server
+// key: dsh has no MCP config of its own, it has an ordered list of patch
+// entries, and deja's is `mcp-deja`.
+func doctorDSHWired(path string) bool {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(b), "id: mcp-deja")
+}
+
+// doctorZCodeWired reads `mcp.servers`, one level deeper than the `mcpServers`
+// the rest of this table uses.
+func doctorZCodeWired(path string) bool {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var root struct {
+		MCP struct {
+			Servers map[string]any `json:"servers"`
+		} `json:"mcp"`
+	}
+	if json.Unmarshal(b, &root) != nil {
+		return false
+	}
+	for _, v := range root.MCP.Servers {
+		if mcpEntryDejaCommand(v) != "" {
+			return true
+		}
+	}
+	_, ok := root.MCP.Servers["deja"]
+	return ok
+}
+
+// doctorFirstExisting names the host a report should talk about when a harness
+// has one settings file per VS Code-compatible editor: the one that is there.
+// A row with no path at all says less than nothing, so fallback takes the first
+// candidate, and then the one passed in — Kilo Code's reader lists only
+// directories that exist, which on a machine without the extension is none.
+func doctorFirstExisting(paths []string, fallback string) string {
+	for _, p := range paths {
+		if doctorExists(p) {
+			return p
+		}
+	}
+	if len(paths) > 0 {
+		return paths[0]
+	}
+	return fallback
+}
+
+// vsCodeExtensionMCPPath is where an extension would keep its MCP settings in
+// plain VS Code, for a report on a machine that has neither the editor nor the
+// extension: both readers list only directories that exist, so on such a
+// machine the row had no path to print at all.
+func vsCodeExtensionMCPPath(extension string) string {
+	return filepath.Join(vsCodeDefaultUserDir(), "globalStorage", extension, "settings", "mcp_settings.json")
 }
 
 // doctorZedWired reads the same JSONC the installer writes, with the same

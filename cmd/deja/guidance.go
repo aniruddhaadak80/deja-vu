@@ -69,6 +69,12 @@ When recalled history genuinely helps — a reused fix, a skipped re-debug, even
 // Amp is measured too: `amp skill list` on 0.0.1788724845 lists a skill placed
 // only in ~/.agents/skills, and does not list one under a project's .amp/skills.
 var sharedSkillHarnesses = map[string]bool{
+	// pi is measured the same way, and by the fault rather than the find: with
+	// a copy in both places its start screen prints
+	// `"deja-history" collision: ✓ ~/.pi/agent/skills/… ✗ ~/.agents/skills/…
+	// (skipped)`, which is proof it scans the shared directory and proof that
+	// two copies are visible to a user (#3657).
+	"pi":     true,
 	"cursor": true, "gemini": true, "kimi": true, "qwen": true,
 	"roo": true, "codex": true, "goose": true, "openclaw": true,
 	"omp": true, "deepseek": true, "zed": true, "amp": true, "prime": true,
@@ -225,6 +231,11 @@ func retiredGuidancePaths(harness string) []string {
 		}
 	case "codex":
 		return []string{filepath.Join(sources.CodexHome(), "AGENTS.md")}
+	case "pi":
+		// The copy deja used to write in pi's own directory. Left behind it is
+		// not harmless: pi loads that one, skips the shared file and prints the
+		// collision on every start (#3657).
+		return []string{filepath.Join(sources.PiConfigDir(), "skills", "deja-history", "SKILL.md")}
 	case "cursor":
 		return []string{filepath.Join(sources.CursorCLIHome(), "skills", "deja-history", "SKILL.md")}
 	case "roo":
@@ -688,6 +699,12 @@ func guidanceStatus(harness string) string {
 	harness = guidanceHarness(harness)
 	path := guidancePath(harness)
 	if path == "" {
+		// Four harnesses' manuals are written by their own install target
+		// rather than by the generic guidance step, so this said "unsupported"
+		// about a file deja had written.
+		path = ownGuidanceFile(harness)
+	}
+	if path == "" {
 		return "unsupported"
 	}
 	b, err := os.ReadFile(path)
@@ -700,10 +717,35 @@ func guidanceStatus(harness string) string {
 	if len(strings.TrimSpace(string(b))) == 0 {
 		return "absent"
 	}
-	if guidanceOwnsWholeFile(harness) || strings.Contains(string(b), guidanceStart) {
+	// A file in a directory of deja's own carries no marker either, and the
+	// harness's own installer is the one that wrote it.
+	if guidanceOwnsWholeFile(harness) || ownGuidanceFile(harness) != "" || strings.Contains(string(b), guidanceStart) {
 		return "written"
 	}
 	return "absent"
+}
+
+// ownGuidanceFile names the manual a harness's own install target writes,
+// rather than the generic guidance step. Deliberately separate from
+// guidanceOwnsWholeFile, which answers the narrower question of whether that
+// manual is a skill: Kiro's is a steering file, always included rather than
+// opened on demand, and the registry records it as not a skill.
+func ownGuidanceFile(harness string) string {
+	switch harness {
+	case "kilocode":
+		return kilocodeSkillPath()
+	case "gjc":
+		return gjcSkillPath()
+	case "commandcode":
+		return commandCodeSkillPath()
+	case "cherrystudio":
+		// It has no directory of its own; it reads the skill directories of
+		// whichever agent CLIs the machine has, the shared one among them.
+		return sharedSkillPath()
+	case "kiro":
+		return kiroSteeringPath()
+	}
+	return ""
 }
 
 func guidanceResult(harness string, uninstall bool) (installResult, error) {
