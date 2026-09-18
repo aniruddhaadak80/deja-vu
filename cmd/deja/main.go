@@ -3835,11 +3835,12 @@ Usage:
   deja view [--no-open]  (browse your memory: sessions, recalls, notes — one local HTML)
   deja ctx <query|id-prefix>
   deja blame <path> [--all] [--json] [--project name] [--harness name] [--since 30d]
-  deja files <topic> [--project name] [--limit n] [--json]
+  deja files <topic> [--project name] [--all-projects] [--limit n] [--json]
   deja restore <path> [--span n] [-o|--out file] [--force]
   deja friction [--limit n] [--json]
   deja fix "<error text>" [--limit n] [--json]  (what was run after this error before)
-  deja how <what> [--project name] [--limit n] [--json]  (commands this machine actually ran)
+  deja how <what> [--project name] [--all-projects] [--limit n] [--json]
+             (commands this project actually ran; --all-projects for the machine)
   deja sync export <dir> [--full] [--include-imported] [--peer name]
   deja sync import <dir>
   deja sync                       (exchange with every machine deja knows, both ways)

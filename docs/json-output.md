@@ -678,6 +678,7 @@ The real command this machine runs for a given tool:
   "truncated": true,
   "withheld": 0,
   "ignored": 0,
+  "project": "goprojects/deja-vu",
   "commands": [
     {
       "command": "go test ./... -race",
@@ -705,6 +706,13 @@ an exit status at all, and `failed_every_time` is false whenever deja knows the
 outcome of no run. `exit_code` is present only when every recorded failure
 agreed on one.
 
+`project` is the scope the answer came from: the project of the working
+directory by default, whatever `--project` asked for, and absent for the whole
+machine (`--all-projects`, or a directory belonging to no project). The two
+answers differ completely — asked inside one repository, a machine-wide `how`
+returned another repository's wrapper command — so a consumer has to be able to
+tell which one it got.
+
 `withheld` and `ignored` are what the trust policy and the ignore rule took out
 before any of this was counted. Without them an empty `commands` means both
 "nothing matched" and "everything that matched was hidden" — which is the reason
@@ -722,6 +730,7 @@ Which files a piece of work touched:
 {
   "schema_version": 2,
   "query": "singbox",
+  "project": "app",
   "sessions_scanned": 34,
   "matched": 34,
   "read_capped": false,
@@ -760,6 +769,11 @@ would report the wrong one:
 `filtered` counts recorded paths dropped because they are not under a
 repository on this disk today — moved, archived, or an unmounted volume. It
 separates "recorded nothing" from "recorded files this build will not show".
+
+`project` is the scope that answered: the project of the working directory
+unless `--project` or `--all-projects` said otherwise, and omitted for the
+machine. Reading the paths cannot tell one from the other — they look plausible
+from any project — which is why the answer names it (#3713).
 
 `withheld` and `ignored` are what the policy rules took out before any of this
 was counted, on the same terms as `how`: an empty `files` otherwise reads as
