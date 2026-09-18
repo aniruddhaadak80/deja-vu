@@ -442,7 +442,7 @@ func cmdIndex(dir string, rest []string) error {
 		case "--quiet", "-quiet":
 			quiet = true
 		default:
-			return fmt.Errorf("index: unknown flag %q", a)
+			return unknownFlag("index", a, indexFlags)
 		}
 	}
 	// Where the command reports that it worked. Nobody is watching a run out
@@ -888,7 +888,7 @@ func parseShow(args []string) (showOptions, error) {
 			}
 		default:
 			if strings.HasPrefix(a, "-") {
-				return o, fmt.Errorf("show: unknown flag %q", a)
+				return o, unknownFlag("show", a, showFlags)
 			}
 			if o.id != "" {
 				return o, fmt.Errorf("show accepts one session id")
@@ -2616,8 +2616,8 @@ func parseSearch(args []string) (search.Options, error) {
 			// "--retry budget"` is a real search. A token one edit away from a
 			// real flag is not: folding `--limti` into the query turned a
 			// working search into "you have no such memory" (#755).
-			if near := nearestSearchFlag(a); near != "" {
-				return o, fmt.Errorf("unknown flag %q — did you mean %s?", a, near)
+			if nearestKnownFlag(a, searchFlags) != "" {
+				return o, unknownFlag("search", a, searchFlags)
 			}
 			// A flag deja takes elsewhere is not a typo and is nowhere near a
 			// search flag by edit distance, so it went into the query and the
@@ -2672,24 +2672,40 @@ var flagsOfOtherCommands = map[string]string{
 }
 
 // searchFlags is every flag the bare search form accepts, for the typo check.
+// The flags each converted command takes, in the order its own parser lists
+// them. A list that drifts from its parser costs a wrong suggestion, not a
+// wrong refusal, and unknown_flag_lists_test.go holds them together.
+var (
+	indexFlags  = []string{"--rebuild", "--quiet"}
+	showFlags   = []string{"--json", "--harness", "--offset", "--limit"}
+	forgetFlags = []string{
+		"--list", "--dry-run", "--all-matches",
+		"--session", "--project", "--before", "--unforget",
+	}
+	statsFlags = []string{
+		"--json", "--html", "--redaction", "--impact", "--card",
+		"--harness", "--project", "--since", "--role",
+	}
+	doctorFlags   = []string{"--json", "--offline", "--deep"}
+	viewFlags     = []string{"--out", "--no-open"}
+	logFlags      = []string{"--json", "--last"}
+	rememberFlags = []string{"--project", "--tag"}
+	restoreFlags  = []string{"--force", "--span", "--out"}
+	promoteFlags  = []string{"--state", "--note", "--to", "--tag"}
+	handoffFlags  = []string{"--to", "--exec"}
+)
+
 var searchFlags = []string{
 	"--json", "--re", "--all", "--no-embed", "--rebuild",
 	"--harness", "--project", "--since", "--role", "--limit", "--session",
 }
 
-// nearestSearchFlag names the flag a token was probably meant to be. It stays
-// silent unless the token looks like a flag and is within one edit of a real
-// one, so ordinary queries — including those containing a dash — are untouched.
+// nearestSearchFlag names the search flag a token was probably meant to be.
+// The rule it introduced is now every command's, in nearestKnownFlag; this is
+// the search-shaped name for it, kept because search is the one command where
+// the answer also decides whether a dashed token is a query term.
 func nearestSearchFlag(a string) string {
-	if !strings.HasPrefix(a, "--") || len([]rune(a)) < 4 {
-		return ""
-	}
-	for _, f := range searchFlags {
-		if a == f {
-			return ""
-		}
-	}
-	return nearestTarget(a, searchFlags)
+	return nearestKnownFlag(a, searchFlags)
 }
 
 func parseBlame(args []string) (string, search.BlameOptions, bool, error) {
@@ -3411,7 +3427,7 @@ func runForget(dir string, args []string) error {
 			if !strings.HasPrefix(args[i], "-") {
 				return fmt.Errorf("forget: a session id goes after --session — `deja forget --session %s`", pasteSafe(args[i]))
 			}
-			return fmt.Errorf("forget: unknown flag %q", args[i])
+			return unknownFlag("forget", args[i], forgetFlags)
 		}
 	}
 	// An empty `--unforget` was answered with the selectors for forgetting:
