@@ -85,6 +85,10 @@ https://vshulcz.github.io/deja-vu/zh/guide/memory-for-kimi.html
 https://vshulcz.github.io/deja-vu/zh/guide/memory-for-qwen.html
 https://vshulcz.github.io/deja-vu/guide/delete-codex-sessions.html
 https://vshulcz.github.io/deja-vu/guide/delete-cursor-chat-history.html
+https://vshulcz.github.io/deja-vu/guide/delete-copilot-chat-history.html
+https://vshulcz.github.io/deja-vu/guide/delete-gemini-cli-history.html
+https://vshulcz.github.io/deja-vu/guide/delete-opencode-session-history.html
+https://vshulcz.github.io/deja-vu/guide/delete-kilo-code-task-history.html
 https://vshulcz.github.io/deja-vu/guide/recover-a-deleted-session.html
 https://vshulcz.github.io/deja-vu/registry/kilocode.html
 https://vshulcz.github.io/deja-vu/registry/cherrystudio.html
@@ -94,3 +98,6 @@ https://vshulcz.github.io/deja-vu/registry/kimchi.html
 https://vshulcz.github.io/deja-vu/registry/senpi.html
 https://vshulcz.github.io/deja-vu/registry/zcode.html
 https://vshulcz.github.io/deja-vu/registry/gjc.html
+https://vshulcz.github.io/deja-vu/zh/guide/where-sessions-are-stored.html
+https://vshulcz.github.io/deja-vu/zh/guide/session-files-on-disk.html
+https://vshulcz.github.io/deja-vu/zh/guide/privacy.html
