@@ -2787,6 +2787,12 @@ func runBlame(dir string, args []string) error {
 	if err != nil {
 		return err
 	}
+	// Before the answer, because the answer is about the file and the reader
+	// asked about a line: said afterwards it reads as a footnote to a result
+	// they think is line-level (#3738).
+	if target.LineNote != "" && !jsonOutput {
+		fmt.Fprintf(os.Stderr, "deja: %s — answering for the whole file\n", target.LineNote)
+	}
 	hits, hidden, total, err := findBlameHits(dir, target, o, policy.ActivationSearch, os.Stderr)
 	if err != nil {
 		return fmt.Errorf("blame search: %w", err)
@@ -2796,9 +2802,7 @@ func runBlame(dir string, args []string) error {
 	// commit replaced (#1181). Before the branches below, because a file no
 	// session mentions still has a commit behind the line — and "no session
 	// wrote this" is the answer, not silence.
-	// A spec that is not a line gets the same first word: it went nowhere, and
-	// the answer below is about the file (#3738).
-	if (target.Line > 0 || target.LineSpec != "") && !jsonOutput {
+	if target.Line > 0 && !jsonOutput {
 		lineBlame(os.Stdout, dir, target, hits)
 	}
 	if jsonOutput {
