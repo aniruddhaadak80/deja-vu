@@ -529,15 +529,24 @@ type Manifest struct {
 	// Format is the on-disk layout this store was written with. Absent on a
 	// store written before the field existed, which reads as unknown: a reader
 	// that cannot tell declines rather than guessing.
-	Format           int                    `json:"format,omitempty"`
-	Files            map[string]FileState   `json:"files"`
-	Sessions         map[string]SessionMeta `json:"sessions"`
-	BuiltAt          time.Time              `json:"built_at"`
-	Generation       string                 `json:"generation,omitempty"`
-	Scope            string                 `json:"scope"`
-	Redacted         int                    `json:"redacted"`
-	RedactionRules   map[string]int         `json:"redaction_rules,omitempty"`
-	ExportWatermarks map[string]int64       `json:"export_watermarks,omitempty"`
+	Format   int                    `json:"format,omitempty"`
+	Files    map[string]FileState   `json:"files"`
+	Sessions map[string]SessionMeta `json:"sessions"`
+	BuiltAt  time.Time              `json:"built_at"`
+	// SourcesReadAt is when deja last walked this machine's stores. It is not
+	// BuiltAt: an import from a peer writes the manifest, and the manifest's
+	// build time with it, without looking at a single local transcript. On a
+	// machine that syncs on a timer that made every store look freshly read —
+	// `deja doctor` counts a store stale by comparing its newest file against
+	// the build time, so it reported nothing to do while local transcripts sat
+	// unread (#3747). Absent on a store written before this field, which reads
+	// as zero and falls back to BuiltAt.
+	SourcesReadAt    time.Time        `json:"sources_read_at"`
+	Generation       string           `json:"generation,omitempty"`
+	Scope            string           `json:"scope"`
+	Redacted         int              `json:"redacted"`
+	RedactionRules   map[string]int   `json:"redaction_rules,omitempty"`
+	ExportWatermarks map[string]int64 `json:"export_watermarks,omitempty"`
 	// ExportBoundary remembers which records were already sent at exactly
 	// the watermark instant, so resuming is precise even when a harness
 	// stamps a whole session with one timestamp.
@@ -621,6 +630,7 @@ type manifestCore struct {
 	Format           int
 	Files            map[string]FileState
 	BuiltAt          time.Time
+	SourcesReadAt    time.Time
 	Generation       string
 	Scope            string
 	Redacted         int

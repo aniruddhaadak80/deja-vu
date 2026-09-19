@@ -212,6 +212,32 @@ func ManifestBuiltAt(dir string) time.Time {
 	return time.Time{}
 }
 
+// ManifestSourcesReadAt returns when deja last walked this machine's stores,
+// which is the time anything asking "is a store behind?" has to compare
+// against. BuiltAt is not that time: an import from a peer rewrites the
+// manifest without reading a local transcript, so on a machine that syncs on a
+// timer every store looked freshly read (#3747). Falls back to BuiltAt for a
+// store written before the field existed.
+func ManifestSourcesReadAt(dir string) time.Time {
+	if dir == "" {
+		dir = DefaultDir()
+	}
+	m, err := readManifest(dir)
+	if err == nil && !m.SourcesReadAt.IsZero() {
+		return m.SourcesReadAt
+	}
+	// An index an import built on a machine that had never indexed carries no
+	// files on purpose (#1307): nothing local has been read, so the honest
+	// answer is "never" rather than the import's own clock. Only for that
+	// shape — a store written before this field has files, and answering
+	// "never" for it would call every store behind the moment someone
+	// upgrades.
+	if err == nil && len(m.Files) == 0 {
+		return time.Time{}
+	}
+	return ManifestBuiltAt(dir)
+}
+
 // HarnessSessionCounts reports how many indexed sessions each harness holds.
 //
 // doctor counts transcript files; the number of sessions those files became is
@@ -392,7 +418,7 @@ func readManifest(dir string) (Manifest, error) {
 	if err := readGob(filepath.Join(dir, "manifest.gob"), &core); err != nil {
 		return Manifest{}, err
 	}
-	m := Manifest{Version: core.Version, Format: core.Format, Files: core.Files, BuiltAt: core.BuiltAt, Generation: core.Generation, Scope: core.Scope, Redacted: core.Redacted, RedactionRules: core.RedactionRules, ExportWatermarks: core.ExportWatermarks, ExportBoundary: core.ExportBoundary, ImportedRecords: core.ImportedRecords, RecordStrings: core.RecordStrings, RecordsSize: core.RecordsSize, BucketFiles: core.BucketFiles, IngestHealth: core.IngestHealth, IngestFiles: core.IngestFiles, ExcludeFingerprint: core.ExcludeFingerprint, ToolFingerprint: core.ToolFingerprint, Compactions: core.Compactions, Sessions: map[string]SessionMeta{}}
+	m := Manifest{Version: core.Version, Format: core.Format, Files: core.Files, BuiltAt: core.BuiltAt, SourcesReadAt: core.SourcesReadAt, Generation: core.Generation, Scope: core.Scope, Redacted: core.Redacted, RedactionRules: core.RedactionRules, ExportWatermarks: core.ExportWatermarks, ExportBoundary: core.ExportBoundary, ImportedRecords: core.ImportedRecords, RecordStrings: core.RecordStrings, RecordsSize: core.RecordsSize, BucketFiles: core.BucketFiles, IngestHealth: core.IngestHealth, IngestFiles: core.IngestFiles, ExcludeFingerprint: core.ExcludeFingerprint, ToolFingerprint: core.ToolFingerprint, Compactions: core.Compactions, Sessions: map[string]SessionMeta{}}
 	if err := readGob(filepath.Join(dir, "sessions.gob"), &m.Sessions); err != nil {
 		return Manifest{}, err
 	}
@@ -403,7 +429,7 @@ func readManifest(dir string) (Manifest, error) {
 // for updates that change only core fields (e.g. export watermarks) where the
 // caller has not loaded sessions and must not clobber them.
 func writeManifestOnly(dir string, m Manifest) error {
-	core := manifestCore{Version: m.Version, Format: m.Format, Files: m.Files, BuiltAt: m.BuiltAt, Generation: m.Generation, Scope: m.Scope, Redacted: m.Redacted, RedactionRules: m.RedactionRules, ExportWatermarks: m.ExportWatermarks, ExportBoundary: m.ExportBoundary, ImportedRecords: m.ImportedRecords, RecordStrings: m.RecordStrings, IngestHealth: m.IngestHealth, IngestFiles: m.IngestFiles, ExcludeFingerprint: m.ExcludeFingerprint, ToolFingerprint: m.ToolFingerprint, Compactions: m.Compactions}
+	core := manifestCore{Version: m.Version, Format: m.Format, Files: m.Files, BuiltAt: m.BuiltAt, SourcesReadAt: m.SourcesReadAt, Generation: m.Generation, Scope: m.Scope, Redacted: m.Redacted, RedactionRules: m.RedactionRules, ExportWatermarks: m.ExportWatermarks, ExportBoundary: m.ExportBoundary, ImportedRecords: m.ImportedRecords, RecordStrings: m.RecordStrings, IngestHealth: m.IngestHealth, IngestFiles: m.IngestFiles, ExcludeFingerprint: m.ExcludeFingerprint, ToolFingerprint: m.ToolFingerprint, Compactions: m.Compactions}
 	if fi, err := os.Stat(filepath.Join(dir, "records.bin")); err == nil {
 		core.RecordsSize = fi.Size()
 	}
@@ -419,7 +445,7 @@ func writeManifestOnly(dir string, m Manifest) error {
 // rather than serving a fresh-looking index whose sessions are stale.
 func writeManifest(dir string, m Manifest) error {
 	mergeIngestDiag(&m)
-	core := manifestCore{Version: m.Version, Format: m.Format, Files: m.Files, BuiltAt: m.BuiltAt, Generation: m.Generation, Scope: m.Scope, Redacted: m.Redacted, RedactionRules: m.RedactionRules, ExportWatermarks: m.ExportWatermarks, ExportBoundary: m.ExportBoundary, ImportedRecords: m.ImportedRecords, RecordStrings: m.RecordStrings, IngestHealth: m.IngestHealth, IngestFiles: m.IngestFiles, ExcludeFingerprint: m.ExcludeFingerprint, ToolFingerprint: m.ToolFingerprint, Compactions: m.Compactions}
+	core := manifestCore{Version: m.Version, Format: m.Format, Files: m.Files, BuiltAt: m.BuiltAt, SourcesReadAt: m.SourcesReadAt, Generation: m.Generation, Scope: m.Scope, Redacted: m.Redacted, RedactionRules: m.RedactionRules, ExportWatermarks: m.ExportWatermarks, ExportBoundary: m.ExportBoundary, ImportedRecords: m.ImportedRecords, RecordStrings: m.RecordStrings, IngestHealth: m.IngestHealth, IngestFiles: m.IngestFiles, ExcludeFingerprint: m.ExcludeFingerprint, ToolFingerprint: m.ToolFingerprint, Compactions: m.Compactions}
 	if fi, err := os.Stat(filepath.Join(dir, "records.bin")); err == nil {
 		core.RecordsSize = fi.Size()
 	}

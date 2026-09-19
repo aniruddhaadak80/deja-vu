@@ -2079,7 +2079,18 @@ func doctorIndex(w io.Writer, idx doctorIndexReport, dir string) {
 	if fi, err := os.Stat(filepath.Join(dir, "manifest.gob")); err == nil {
 		updated = fi.ModTime().Format("2006-01-02 15:04")
 	}
-	fmt.Fprintf(w, "  status   built (size=%s, updated=%s)\n", humanBytes(pathSize(dir)), updated)
+	// When the index was last written and when deja last read this machine's
+	// stores are different facts, and on a machine that syncs they drift apart:
+	// an import rewrites the index without opening a transcript (#3747). Said
+	// only when they differ by more than an hour, so an ordinary machine keeps
+	// the one-line form.
+	read := ""
+	if at := index.ManifestSourcesReadAt(dir); at.IsZero() {
+		read = ", stores never read"
+	} else if fi, err := os.Stat(filepath.Join(dir, "manifest.gob")); err == nil && fi.ModTime().Sub(at) > time.Hour {
+		read = ", stores read " + at.Format("2006-01-02 15:04")
+	}
+	fmt.Fprintf(w, "  status   built (size=%s, updated=%s%s)\n", humanBytes(pathSize(dir)), updated, read)
 	// An index written by an older format is unreadable to this binary: the
 	// hook paths refuse it and ask for a rebuild, which is why memory goes
 	// quiet after an upgrade. doctor called that "up to date" — the one
@@ -2118,12 +2129,12 @@ func doctorIndex(w io.Writer, idx doctorIndexReport, dir string) {
 	switch idx.State {
 	case "stale":
 		if idx.StaleStores == 1 {
-			fmt.Fprintln(w, "  freshness 1 store changed since last build — run `deja index`")
+			fmt.Fprintln(w, "  freshness 1 store changed since deja last read it — run `deja index`")
 		} else {
-			fmt.Fprintf(w, "  freshness %d stores changed since last build — run `deja index`\n", idx.StaleStores)
+			fmt.Fprintf(w, "  freshness %d stores changed since deja last read them — run `deja index`\n", idx.StaleStores)
 		}
 	case "stale-readonly":
-		fmt.Fprintf(w, "  freshness %s changed since last build, and the index cannot be written — check the permissions on %s, or point DEJA_INDEX_DIR somewhere writable\n",
+		fmt.Fprintf(w, "  freshness %s changed since deja last read it, and the index cannot be written — check the permissions on %s, or point DEJA_INDEX_DIR somewhere writable\n",
 			doctorCount(idx.StaleStores, "store"), filepath.Dir(idx.Path))
 	default:
 		fmt.Fprintln(w, "  freshness up to date")

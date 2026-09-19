@@ -266,12 +266,12 @@ func TestDoctorIndexFreshnessOutput(t *testing.T) {
 	out.Reset()
 	doctorIndex(&out, doctorIndexReport{State: "stale", Path: "/tmp/index", StaleStores: 3}, index.DefaultDir())
 	got := out.String()
-	if !strings.Contains(got, "freshness 3 stores changed since last build") {
+	if !strings.Contains(got, "freshness 3 stores changed since deja last read them") {
 		t.Fatalf("stale output = %q", got)
 	}
 	out.Reset()
 	doctorIndex(&out, doctorIndexReport{State: "stale", Path: "/tmp/index", StaleStores: 1}, index.DefaultDir())
-	if !strings.Contains(out.String(), "freshness 1 store changed since last build") {
+	if !strings.Contains(out.String(), "freshness 1 store changed since deja last read it") {
 		t.Fatalf("singular stale output = %q", out.String())
 	}
 }
