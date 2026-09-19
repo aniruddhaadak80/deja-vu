@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" class="no-js">
+<head>
+<script>document.documentElement.className=document.documentElement.className.replace("no-js","js")</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>找回解决问题的那次会话 — deja-vu</title>
+<meta name="description" content="怎么在整台机器的所有智能体里同时搜聊天记录：按你记得的那个词搜，而不是按你记不清的话题搜，然后用会话 id 继续那次对话。">
+<link rel="canonical" href="https://vshulcz.github.io/deja-vu/zh/guide/find-a-session.html">
+<link rel="alternate" hreflang="zh-Hans" href="https://vshulcz.github.io/deja-vu/zh/guide/find-a-session.html">
+<link rel="alternate" hreflang="en" href="https://vshulcz.github.io/deja-vu/guide/find-a-session.html">
+<link rel="alternate" hreflang="x-default" href="https://vshulcz.github.io/deja-vu/guide/find-a-session.html">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:title" content="找回解决问题的那次会话">
+<meta property="og:description" content="怎么在整台机器的所有智能体里同时搜聊天记录：按你记得的那个词搜，而不是按你记不清的话题搜，然后用会话 id 继续那次对话。">
+<meta property="og:url" content="https://vshulcz.github.io/deja-vu/zh/guide/find-a-session.html">
+<meta property="og:image" content="https://vshulcz.github.io/deja-vu/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="deja-vu — 给编程智能体的可搜索本地记忆">
+<link rel="describedby" type="text/markdown" href="https://vshulcz.github.io/deja-vu/llms.txt">
+<meta name="twitter:title" content="找回解决问题的那次会话">
+<meta name="twitter:description" content="怎么在整台机器的所有智能体里同时搜聊天记录：按你记得的那个词搜，而不是按你记不清的话题搜，然后用会话 id 继续那次对话。">
+<meta name="twitter:image" content="https://vshulcz.github.io/deja-vu/assets/og.png">
+<link rel="icon" type="image/svg+xml" sizes="16x16" href="../../assets/favicon.svg">
+<link rel="icon" type="image/svg+xml" sizes="any" href="../../assets/icon.svg">
+<link rel="stylesheet" href="../../assets/site.css">
+<meta name="author" content="vshulcz">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+<meta name="theme-color" content="#0d0b16">
+<meta name="color-scheme" content="dark light">
+<meta property="og:site_name" content="deja-vu">
+<link rel="apple-touch-icon" href="../../assets/icon.svg">
+<link rel="sitemap" type="application/xml" href="https://vshulcz.github.io/deja-vu/sitemap.xml">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "TechArticle", "headline": "找回解决问题的那次会话", "description": "怎么在整台机器的所有智能体里同时搜聊天记录：按你记得的那个词搜，而不是按你记不清的话题搜，然后用会话 id 继续那次对话。", "url": "https://vshulcz.github.io/deja-vu/zh/guide/find-a-session.html", "inLanguage": "zh-Hans", "author": {"@type": "Person", "name": "vshulcz"}, "publisher": {"@type": "Person", "name": "vshulcz"}, "mainEntityOfPage": {"@type": "WebPage", "@id": "https://vshulcz.github.io/deja-vu/zh/guide/find-a-session.html"}, "isPartOf": {"@type": "WebSite", "name": "deja-vu", "url": "https://vshulcz.github.io/deja-vu/"}, "datePublished": "2026-09-19", "dateModified": "2026-09-19"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "deja-vu", "item": "https://vshulcz.github.io/deja-vu/"}, {"@type": "ListItem", "position": 2, "name": "找回解决问题的那次会话", "item": "https://vshulcz.github.io/deja-vu/zh/guide/find-a-session.html"}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "怎么找到修复某个问题时的那次会话？", "acceptedAnswer": {"@type": "Answer", "text": "按你记得最清楚的东西搜——一条报错原文、一个函数名、一个文件路径或一个旗标。这些内容在会话记录里是原样保存的，哪怕你已经忘了当时用的是哪个工具、哪个项目、哪个月。"}}, {"@type": "Question", "name": "能在跑那次会话的智能体里重新打开它吗？", "acceptedAnswer": {"@type": "Answer", "text": "deja 读的三十三个智能体里有二十个可以：deja resume <id> 把 id 交回给那个智能体，对话就在那里继续。其余的没有自己的恢复入口。"}}, {"@type": "Question", "name": "只记得大概是什么时候怎么办？", "acceptedAnswer": {"@type": "Answer", "text": "时间只是提示，不是过滤器：查询里带日期会把最近的会话往前排，但不会藏掉更早的；deja last 还能按项目、角色或智能体列出最近的会话。"}}]}</script>
+</head>
+<body>
+<div class="glow"></div>
+<nav><a class="brand" href="../../"><img src="../../assets/icon.svg" alt="" width="22" height="22">deja-vu</a><span class="spacer"></span><a class="lnk" href="../../">首页</a><a class="lnk" href="getting-started.html">文档</a><a class="lnk" href="https://github.com/vshulcz/deja-vu">GitHub</a></nav>
+<div class="wrap"><div class="doc">
+<aside><a href="../../">← deja-vu</a><div class="grp">中文指南</div>
+<a href="getting-started.html">快速开始</a>
+<a href="does-my-agent-remember.html">智能体记得之前的对话吗</a>
+<a href="forgetting.html">为什么会忘事</a>
+<a href="where-sessions-are-stored.html">历史文件在哪里</a>
+<a href="session-files-on-disk.html">会话文件怎么删</a>
+<a href="find-a-session.html" aria-current="page">找回解决问题的那次会话</a>
+<a href="privacy.html">隐私</a>
+<a href="memory-for-dsh.html">给 DeepSeek Harness 加记忆</a>
+<a href="memory-for-kimi.html">给 Kimi Code 加记忆</a>
+<a href="memory-for-qwen.html">给 Qwen Code 加记忆</a>
+<div class="grp">English</div>
+<a href="../../guide/find-a-session.html">Finding a session</a>
+<a href="../../guide/session-files-on-disk.html">Session files on disk</a>
+<a href="../../guide/where-sessions-are-stored.html">Where history lives</a>
+<a href="../../guide/delete-copilot-chat-history.html">Delete Copilot Chat history</a>
+<a href="../../guide/commands.html">CLI reference</a>
+<div class="grp">Reference</div>
+<a href="https://github.com/vshulcz/deja-vu/blob/main/README.zh.md">中文 README</a>
+<a href="../../registry/README.html">Format registry</a><a class="sidecat" href="../../"><img src="../../assets/icon-live.svg" width="46" height="46" alt=""><span>它记得，你就不必记</span></a></aside>
+<article>
+
+<h1>找回解决问题的那次会话</h1>
+<p class="pagelede">按你记得的那个词搜，而不是按你记不清的话题搜<span class="mins" data-mins></span></p>
+
+<p>问题修好了，报错也记得大概。但不记得当时用的是 Claude Code 还是 Codex、在哪个项目下、是三周前还是三个月前——而智能体自己的历史列表只是一堵标题墙，一次只有一个工具，倒序排着。整台机器上没有任何东西能把它们全部放在一起搜。</p>
+
+<h2>按记得最清楚的那个词搜</h2>
+<p>不是话题，是词。一条报错原文、一个函数名、一个文件路径、一个旗标。这些内容在会话记录里是原样保存的，也正是它们能把你要的那次会话，从四十个讨论同一主题的会话里分出来：</p>
+<pre>$ deja "connection pool exhausted"
+[claude] api   · Jul 8 · 8f31c0a9 — 2 matches
+  login started failing after refresh token rotation; jwt kid mismatch in tests
+  fixed by reloading jwks cache after rotateKey and adding a clock-skew test
+[codex]  web   · Jul 1 · b77d91e2 — 1 match
+  refresh token cookie needed SameSite=Lax in local callback flow</pre>
+<p>多个词之间是 AND 关系，加引号要求整句完全一致，而没有精确命中时，搜索会退回到词形变化和近似拼写，而不是直接返回空。工具那一列比看上去更重要：你要找的那次会话，往往就在你没想起来的那个工具里。</p>
+
+<h2>不靠猜地收窄范围</h2>
+<ul>
+<li><code>--harness claude</code>、<code>--project api-gateway</code>——确定的时候再用，而且只在确定的时候用。</li>
+<li><code>--since 30d</code>——硬过滤器。查询里带日期是更柔和的版本：它把最近的会话往前排，但不藏掉更早的，因为「我记得大概是春天」只是个提示，如果其实是四月，它不该把这个答案扔掉。</li>
+<li><code>--role user</code>——只搜你自己输入的内容。记得自己说过什么、不记得答案是什么的时候，这是个好过滤器。</li>
+<li><code>deja last 20 --project api</code>——不带查询，只是列出一个项目里最近的会话。</li>
+</ul>
+
+<h2>读完，然后接着聊</h2>
+<p>一条命中会给你一个会话 id。拿它做两件事：</p>
+<pre>deja show 8f31c0a9      # 读那次会话
+deja ctx  8f31c0a9      # 一份 Markdown 摘要，粘到你正在做的事情里
+deja resume 8f31c0a9    # 在跑那次会话的智能体里重新打开</pre>
+<p><code>resume</code> 把 id 交回给拥有那次会话的智能体，并带上项目目录，让那个智能体自己的列表收窄到这一个。deja 读的三十三个智能体里有二十个可以这样恢复。剩下五个——aider、Continue、VS Code Copilot Chat、DeepSeek Harness 和 Zed——没有自己的恢复入口，deja 会直说，而不是假装可以。Roo Code 一半一半：它命令行创建的任务用 <code>roo --session-id</code>，编辑器里的任务回到编辑器里打开。</p>
+<p>id 按前缀匹配，所以结果里打印的八个字符就够输入了。</p>
+
+<h2>答案是一条命令而不是一次会话的时候</h2>
+<p>很多时候你要的不是那段对话，而是里面的一句话：</p>
+<pre>deja how "docker compose up"    # 这个项目实际用的启动命令
+deja fix "pq: too many connections"   # 那个报错之后跑过什么、在哪里真正修好了
+deja blame path/to/file.go      # 哪些会话对这个文件做过决定</pre>
+<p>这些命令跳过阅读那一步，直接给答案。</p>
+
+<p><a href="where-sessions-are-stored.html">历史文件在哪里</a> · <a href="getting-started.html">快速开始</a> · <a href="session-files-on-disk.html">会话文件怎么删</a></p>
+</article>
+</div>
+<footer>deja-vu 采用 MIT 许可，全部在本地运行。<a href="https://github.com/vshulcz/deja-vu">GitHub 源码</a> · <a href="../../">首页</a></footer>
+</div>
+<script src="../../assets/guide.js" defer></script>
+</body>
+</html>
