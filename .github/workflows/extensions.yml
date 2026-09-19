@@ -322,11 +322,11 @@ jobs:
 
       # A package npm holds ahead of the release line is skipped by every
       # release, silently, until the project's version passes it — dsh-deja sat
-      # that way from 25 August. Reporting rather than failing while that is
-      # still true of dsh-deja: drop continue-on-error once the release line has
-      # caught up, and this becomes the guard that stops it happening again.
+      # that way from 25 August. That has caught up, so this fails rather than
+      # reports: 0.20.2 left opencode-deja and openclaw-deja a release behind
+      # and the log said so for a day with nobody reading it (#3776). The fix
+      # is one command, which the failure prints.
       - name: No harness package is stranded ahead of the release line
-        continue-on-error: true
         run: |
           git fetch --tags --quiet || true
           node scripts/extension-drift.mjs

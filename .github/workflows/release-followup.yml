@@ -60,7 +60,11 @@ jobs:
           if ! out=$(go run ./scripts/pinmanifests -check 2>&1); then
             left="${left}- the Windows manifests and plugin files: \`go run ./scripts/pinmanifests -version ${VERSION#v} -checksums <checksums.txt from the release>\`"$'\n'"  \`\`\`"$'\n'"  ${out}"$'\n'"  \`\`\`"$'\n'
           fi
-          if ! out=$(node scripts/extension-drift.mjs 2>&1); then
+          # --after waits for npm to serve the release before deciding: this step
+          # ran at 13:59:05 after 0.20.2 while the two packages landed at 14:01:54
+          # and 14:02:50, so it asked a registry that had not caught up and said
+          # the repository was fine (#3776).
+          if ! out=$(node scripts/extension-drift.mjs --after "${VERSION#v}" 2>&1); then
             left="${left}- the published extension versions: \`node scripts/extension-drift.mjs --write\`"$'\n'"  \`\`\`"$'\n'"  ${out}"$'\n'"  \`\`\`"$'\n'
           fi
           # A flag rather than the emptiness of the block below: a heredoc

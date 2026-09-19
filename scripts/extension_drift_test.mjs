@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-import { MIRRORS, PACKAGES, behindNpm, compareVersions } from "./extension-drift.mjs";
+import { MIRRORS, PACKAGES, awaitPublished, behindNpm, compareVersions, notYetPublished } from "./extension-drift.mjs";
 
 const pkgs = {
   "extensions/opencode": { name: "opencode-deja", version: "0.20.1" },
@@ -78,4 +78,48 @@ test("versions order by number", () => {
   assert.equal(compareVersions("0.9.0", "0.10.0"), -1);
   assert.equal(compareVersions("0.20.5", "0.20.5"), 0);
   assert.throws(() => compareVersions("0.21.0-rc.1", "0.20.3"), /not a plain version/);
+});
+
+// The follow-up asked npm the moment the release finished, while the publishes
+// were still in flight, and called a repository that was behind "caught up":
+// on 0.20.2 the check ran at 13:59:05 and the two packages landed on npm at
+// 14:01:54 and 14:02:50. Waiting for the released version is what makes the
+// check after it mean anything (#3776).
+test("notYetPublished names the packages npm has not served yet", () => {
+  const readPkg = (dir) => ({ name: dir, version: "0.20.1" });
+  const latest = (name) => (name === "b" ? "0.20.2" : "0.20.1");
+  const pending = notYetPublished(["a", "b"], readPkg, latest, "0.20.2");
+  assert.deepEqual(
+    pending.map((p) => p.name),
+    ["a"],
+  );
+});
+
+test("a package npm has never served is not something to wait for", () => {
+  const readPkg = (dir) => ({ name: dir, version: "0.20.2" });
+  const pending = notYetPublished(["a"], readPkg, () => "", "0.20.2");
+  assert.deepEqual(pending, []);
+});
+
+test("awaitPublished stops as soon as npm catches up, and gives up bounded", async () => {
+  const readPkg = (dir) => ({ name: dir, version: "0.20.1" });
+  let asked = 0;
+  const latest = () => {
+    asked++;
+    return asked < 3 ? "0.20.1" : "0.20.2";
+  };
+  let waits = 0;
+  const wait = async () => {
+    waits++;
+  };
+  const got = await awaitPublished(["a"], readPkg, latest, "0.20.2", { wait, everyMs: 1, tries: 10 });
+  assert.equal(got.settled, true);
+  assert.equal(waits, 2);
+
+  const stuck = await awaitPublished(["a"], readPkg, () => "0.20.1", "0.20.2", { wait, everyMs: 1, tries: 3 });
+  assert.equal(stuck.settled, false);
+  assert.deepEqual(
+    stuck.pending.map((p) => p.name),
+    ["a"],
+  );
 });
