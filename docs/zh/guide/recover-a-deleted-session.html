@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" class="no-js">
+<head>
+<script>document.documentElement.className=document.documentElement.className.replace("no-js","js")</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>怎么找回被删掉的 Claude Code 会话 — deja-vu</title>
+<meta name="description" content="claude --resume 里找不到那次会话：文件去了哪里，四种原因里有三种并不是删除，以及真正还能找回的是什么。">
+<link rel="canonical" href="https://vshulcz.github.io/deja-vu/zh/guide/recover-a-deleted-session.html">
+<link rel="alternate" hreflang="zh-Hans" href="https://vshulcz.github.io/deja-vu/zh/guide/recover-a-deleted-session.html">
+<link rel="alternate" hreflang="en" href="https://vshulcz.github.io/deja-vu/guide/recover-a-deleted-session.html">
+<link rel="alternate" hreflang="x-default" href="https://vshulcz.github.io/deja-vu/guide/recover-a-deleted-session.html">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:title" content="怎么找回被删掉的 Claude Code 会话">
+<meta property="og:description" content="claude --resume 里找不到那次会话：文件去了哪里，四种原因里有三种并不是删除，以及真正还能找回的是什么。">
+<meta property="og:url" content="https://vshulcz.github.io/deja-vu/zh/guide/recover-a-deleted-session.html">
+<meta property="og:image" content="https://vshulcz.github.io/deja-vu/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="deja-vu — 给编程智能体的可搜索本地记忆">
+<link rel="describedby" type="text/markdown" href="https://vshulcz.github.io/deja-vu/llms.txt">
+<meta name="twitter:title" content="怎么找回被删掉的 Claude Code 会话">
+<meta name="twitter:description" content="claude --resume 里找不到那次会话：文件去了哪里，四种原因里有三种并不是删除，以及真正还能找回的是什么。">
+<meta name="twitter:image" content="https://vshulcz.github.io/deja-vu/assets/og.png">
+<link rel="icon" type="image/svg+xml" sizes="16x16" href="../../assets/favicon.svg">
+<link rel="icon" type="image/svg+xml" sizes="any" href="../../assets/icon.svg">
+<link rel="stylesheet" href="../../assets/site.css">
+<meta name="author" content="vshulcz">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+<meta name="theme-color" content="#0d0b16">
+<meta name="color-scheme" content="dark light">
+<meta property="og:site_name" content="deja-vu">
+<link rel="apple-touch-icon" href="../../assets/icon.svg">
+<link rel="sitemap" type="application/xml" href="https://vshulcz.github.io/deja-vu/sitemap.xml">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "TechArticle", "headline": "怎么找回被删掉的 Claude Code 会话", "description": "claude --resume 里找不到那次会话：文件去了哪里，四种原因里有三种并不是删除，以及真正还能找回的是什么。", "url": "https://vshulcz.github.io/deja-vu/zh/guide/recover-a-deleted-session.html", "inLanguage": "zh-Hans", "author": {"@type": "Person", "name": "vshulcz"}, "publisher": {"@type": "Person", "name": "vshulcz"}, "mainEntityOfPage": {"@type": "WebPage", "@id": "https://vshulcz.github.io/deja-vu/zh/guide/recover-a-deleted-session.html"}, "isPartOf": {"@type": "WebSite", "name": "deja-vu", "url": "https://vshulcz.github.io/deja-vu/"}, "datePublished": "2026-09-19", "dateModified": "2026-09-19"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "deja-vu", "item": "https://vshulcz.github.io/deja-vu/"}, {"@type": "ListItem", "position": 2, "name": "找回被删掉的会话", "item": "https://vshulcz.github.io/deja-vu/zh/guide/recover-a-deleted-session.html"}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "被删掉的 Claude Code 会话还能找回来吗？", "acceptedAnswer": {"@type": "Answer", "text": "从 Claude Code 那里找不回来：会话记录就是一个文件，删了就是删了，没有可以恢复的归档。能找回的是那些只是看起来被删了的会话——被移到了别的项目目录、被 cleanupPeriodDays 清掉前有备份读过、由无头客户端写到另一个目录，或者整个配置目录换过位置——再加上文件消失前有任何东西读过它的部分。"}}, {"@type": "Question", "name": "Claude Code 的会话为什么会不见？", "acceptedAnswer": {"@type": "Answer", "text": "最常见的原因是 cleanupPeriodDays，默认 30 天后自动删除会话记录。第二个原因是你改名或移动了项目：~/.claude/projects 下的目录名编码的是项目的绝对路径，旧会话还在旧编码名的目录里，而新路径下的 --resume 列不出来。"}}, {"@type": "Question", "name": "claude --resume 不列出的会话在哪儿？", "acceptedAnswer": {"@type": "Answer", "text": "去 ~/.claude/projects 下面找编码着旧路径的目录，去 ~/.claude/transcripts 看无头和 SDK 客户端的写入，Mac 上装了 Xcode 的话再去 ~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig 看。在一个 shell 里设置了 CLAUDE_CONFIG_DIR 而在另一个里没设，会把历史劈成两棵树。"}}, {"@type": "Question", "name": "deja 能找回被删的会话吗？", "acceptedAnswer": {"@type": "Answer", "text": "它留下的是它索引过的内容。文件消失之前 deja 读过的会话记录，之后仍然可以搜索、可以通过 deja show 打开，因为索引不跟着某个文件一起消失。它找不回一个它从未读过的会话。"}}]}</script>
+</head>
+<body>
+<div class="glow"></div>
+<nav><a class="brand" href="../../"><img src="../../assets/icon.svg" alt="" width="22" height="22">deja-vu</a><span class="spacer"></span><a class="lnk" href="../../">首页</a><a class="lnk" href="getting-started.html">文档</a><a class="lnk" href="https://github.com/vshulcz/deja-vu">GitHub</a></nav>
+<div class="wrap"><div class="doc">
+<aside><a href="../../">← deja-vu</a><div class="grp">中文指南</div>
+<a href="getting-started.html">快速开始</a>
+<a href="does-my-agent-remember.html">智能体记得之前的对话吗</a>
+<a href="forgetting.html">为什么会忘事</a>
+<a href="where-sessions-are-stored.html">历史文件在哪里</a>
+<a href="session-files-on-disk.html">会话文件怎么删</a>
+<a href="recover-a-deleted-session.html" aria-current="page">找回被删掉的会话</a>
+<a href="find-a-session.html">找到一次会话</a>
+<a href="privacy.html">隐私</a>
+<div class="grp">English</div>
+<a href="../../guide/recover-a-deleted-session.html">Recover a deleted session</a>
+<a href="../../guide/where-sessions-are-stored.html">Where history lives</a>
+<a href="../../guide/delete-copilot-chat-history.html">Delete Copilot Chat history</a>
+<a href="../../guide/commands.html">CLI reference</a>
+<div class="grp">Reference</div>
+<a href="https://github.com/vshulcz/deja-vu/blob/main/README.zh.md">中文 README</a>
+<a href="../../registry/README.html">Format registry</a><a class="sidecat" href="../../"><img src="../../assets/icon-live.svg" width="46" height="46" alt=""><span>它记得，你就不必记</span></a></aside>
+<article>
+
+<h1>怎么找回被删掉的 Claude Code 会话</h1>
+<p class="pagelede"><code>claude --resume</code> 里找不到那次会话的四个原因，其中三个并不是删除<span class="mins" data-mins></span></p>
+
+<p><code>claude --resume</code> 的列表是从磁盘上的文件生成的，所以列表里没有那次会话，意味着 Claude Code 找的那个地方没有那个文件。这不等于它没了。在接受最坏的那种可能之前，有三个便宜的解释值得先排除。</p>
+
+<h2>它是被删了，还是去了别的地方</h2>
+<p>四种原因，按实际发生的顺序：</p>
+<ol>
+<li><b>30 天的定时清理。</b><code>~/.claude/settings.json</code> 里的 <code>cleanupPeriodDays</code> 默认保留 30 天，到期删掉更早的会话记录，不会有任何提示。如果是这个原因，文件确实没了——见<a href="session-files-on-disk.html">这个清理会做什么</a>。</li>
+<li><b>项目被移动或改名了。</b><code>~/.claude/projects</code> 下的目录名编码的是项目的绝对路径，分隔符和路径里原有的短横线都变成 <code>-</code>。仓库改名之后，旧会话还在旧编码名的目录下面；新路径里的 <code>--resume</code> 没有东西可列。</li>
+<li><b>配置目录不同。</b>在一个 shell 里设置了 <code>CLAUDE_CONFIG_DIR</code> 而在另一个里没设，你的历史就分成了两棵树。</li>
+<li><b>无头或 SDK 会话。</b>这类会话写在 <code>&lt;config&gt;/transcripts/</code> 下面而不是 <code>projects/</code>，由 Xcode 托管的 Claude 则写在 <code>~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig</code> 下面。</li>
+</ol>
+
+<h2>把文件找出来</h2>
+<pre># 所有会话记录，按文件新旧排序
+find ~/.claude -name '*.jsonl' -type f -print0 | xargs -0 ls -t | head
+
+# 看项目目录，找出编码着旧路径的那个
+ls ~/.claude/projects | grep -i &lt;repo-name&gt;
+
+# 有会话 id 的话（从日志或截图里拿到的），直接按内容搜
+grep -rl '&lt;session-id&gt;' ~/.claude 2&gt;/dev/null</pre>
+<p>如果文件出现在一个编码着旧路径的目录里，把它移进当前目录，会话就回到了 <code>--resume</code> 的列表里：那个列表就是这个目录，不是数据库。</p>
+
+<h2>真正能找回的是什么</h2>
+<p>文件确实没了的话，诚实的清单很短。文件还在时拍下的文件系统快照或备份。从访达里删掉（而不是用 <code>rm</code>）时进的废纸篓。以及任何在文件消失之前读过它的东西。</p>
+<p>最后一种是唯一可靠的答案，而且它必须在事前就已经就位。deja 给这台机器上每个智能体写下的会话记录建索引，所以它已经读过的会话，在原件被清理或删除之后仍然可以搜索——先用 <code>deja "那次会话在做什么"</code> 搜到它，再用 <code>deja show &lt;id&gt;</code> 打开它留下的记录。只有 <code>deja forget</code> 会主动丢掉一个会话。从来没有被任何东西读过的会话，没有任何办法找回。</p>
+<pre>curl -fsSL https://raw.githubusercontent.com/vshulcz/deja-vu/main/install.sh | sh
+deja install --auto</pre>
+<p>第一次建索引读的就是磁盘上已有的历史，所以它覆盖的是你现在拥有的那些会话，而不是从今天才开始。</p>
+
+<p><a href="session-files-on-disk.html">会话文件怎么删</a> · <a href="where-sessions-are-stored.html">历史文件在哪里</a> · <a href="find-a-session.html">找到一次会话</a></p>
+</article>
+</div>
+<footer>deja-vu 采用 MIT 许可，全部在本地运行。<a href="https://github.com/vshulcz/deja-vu">GitHub 源码</a> · <a href="../../">首页</a></footer>
+</div>
+<script src="../../assets/guide.js" defer></script>
+</body>
+</html>
