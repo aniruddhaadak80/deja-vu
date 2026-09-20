@@ -50,6 +50,13 @@ func SearchDetailed(dir string, o query.Options) (SearchResult, error) {
 			o2.Query = strings.ReplaceAll(o.Query, "\"", " ")
 			r2, err2 := searchDetailedOnce(dir, o2)
 			if err2 == nil && len(r2.Sessions) > 0 {
+				// The retry can land on the exact tier — the words are all
+				// there, only the phrase was not — and the label about to be
+				// put on it means nothing matched. Say how many did, the same
+				// way a thin strict answer does (#3815).
+				if r2.Strict == 0 && r2.Tier != query.TierRelevance {
+					r2.Strict, r2.StrictIDs = len(r2.Sessions), sessionKeySet(r2.Sessions)
+				}
 				r2.Tier = query.TierRelevance
 				return r2, nil
 			}
@@ -252,6 +259,16 @@ func searchDetailedOnce(dir string, o query.Options) (SearchResult, error) {
 		return SearchResult{}, err
 	}
 	return withRelevanceTail(dir, m, o, SearchResult{Sessions: ss, Tier: fallbackTier, Variants: fallbackVariants})
+}
+
+// sessionKeySet keys sessions the way StrictIDs is keyed, for the paths that
+// know every session they hand back matched.
+func sessionKeySet(ss []model.Session) map[string]bool {
+	out := make(map[string]bool, len(ss))
+	for _, s := range ss {
+		out[s.Harness+":"+s.ID] = true
+	}
+	return out
 }
 
 // thinAND is how few sessions an AND has to return before its own strictness
@@ -2925,6 +2942,26 @@ func OtherWordForms(dir string, terms []string) map[string][]string {
 // direction and empty in content — the reader has to guess which of their words
 // to drop, while deja already read these counts to decide there was none (#826).
 func TermSessionCounts(dir string, terms []string) map[string]int {
+	return termSessionCounts(dir, terms, false)
+}
+
+// TermSessionCountsSpoken counts only the sessions where a term appears in
+// something said rather than in something a tool printed.
+//
+// The caller is the word-forms note, and the difference is what that note is
+// for. deja prints the note into a terminal; a session that ran deja keeps
+// what it printed; the next index reads that transcript. So a form deja
+// generated to search for — "pgbouncereds", "retriesed" — comes back as a form
+// the store holds, and the note names it as a word somebody wrote. Measured on
+// a 2,739-session store: every generated form sat in one or two sessions and in
+// zero spoken ones, while the rarest real form was in three spoken sessions
+// (#3820). The tool bit already rides in the posting, so this costs no extra
+// read.
+func TermSessionCountsSpoken(dir string, terms []string) map[string]int {
+	return termSessionCounts(dir, terms, true)
+}
+
+func termSessionCounts(dir string, terms []string, spokenOnly bool) map[string]int {
 	if dir == "" {
 		dir = DefaultDir()
 	}
@@ -2948,6 +2985,9 @@ func TermSessionCounts(dir string, terms []string) map[string]int {
 		seen := map[uint32]bool{}
 		for _, p := range posts {
 			if servable != nil && !servable[p.Sid] {
+				continue
+			}
+			if spokenOnly && p.Tool {
 				continue
 			}
 			seen[p.Sid] = true
