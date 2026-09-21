@@ -3774,7 +3774,17 @@ func canAppendIncremental(changed map[string]FileState, old map[string]FileState
 			// which rewrites and re-tokenizes the whole store: 4.76s against
 			// 0.30s on a 171 MB index, and growing with the store rather than
 			// with the file (#3500).
-			if !appendableKind(harnessForPath(p)) {
+			//
+			// Whether the kind can *resume* a parse does not matter here, only
+			// whether deja can parse it at all: a new file is read from its
+			// first byte either way. Requiring an offset parser refused the
+			// whole batch over one such file, and an inline caller hands
+			// rewrite-grade work to a detached warmup rather than doing it —
+			// so the live index on the machine this was found on had never
+			// read 1,013 of the files its own loaders list: five senpi
+			// transcripts, five Copilot Chat ones, and a thousand opencode
+			// session diffs, a kind that gains a file per session (#3747).
+			if _, ok := kindForPath(p); !ok {
 				return false
 			}
 			continue
@@ -3879,10 +3889,21 @@ func appendIncremental(dir, harness, scope string, old Manifest, files map[strin
 	// Sorted, not map order: two sessions can claim the same harness:id, and
 	// which one wins decided the project a whole conversation was filed under
 	// — differently on every run (#698).
+	// A file deja has never read is read whole here, not resumed, so its counts
+	// start over the way the full paths start them. Leaving it out of the
+	// parsed set added this pass's bad lines to a count the file never had.
+	newFiles := map[string]FileState{}
+	for p, f := range changed {
+		if _, ok := old.Files[p]; !ok {
+			newFiles[p] = f
+		}
+	}
+	parsedThisPass(newFiles)
 	for _, p := range sortedKeys(changed) {
-		ss, err := parseAppendedFile(harness, p, old.Files[p])
+		of, known := old.Files[p]
+		ss, err := parseAppendedFile(harness, p, of, !known)
 		if err != nil {
-			if of, ok := old.Files[p]; ok {
+			if known {
 				m.Files[p] = of // retry this file on the next pass
 			} else {
 				delete(m.Files, p)
@@ -4071,15 +4092,24 @@ func parseChangedFile(harness, p string, old FileState) ([]model.Session, error)
 	return k.Parse(p, old.LastUpdated)
 }
 
-func parseAppendedFile(harness, p string, old FileState) (ss []model.Session, err error) {
+func parseAppendedFile(harness, p string, old FileState, isNew bool) (ss []model.Session, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			ss, err = nil, fmt.Errorf("parser panic on %s: %v", p, r)
 		}
 	}()
 	k, ok := kindForPath(p)
-	if !ok || k.ParseFrom == nil {
+	if !ok {
 		return nil, nil
+	}
+	if k.ParseFrom == nil {
+		// Resuming is what this kind cannot do, and a file deja has never read
+		// needs no resuming: read it whole from its first byte, which is the
+		// same work the replacement path would do for it (#3747).
+		if !isNew || k.Parse == nil {
+			return nil, nil
+		}
+		return k.Parse(p, 0)
 	}
 	from := old.SafeSize
 	if from == 0 || from > old.Size {
