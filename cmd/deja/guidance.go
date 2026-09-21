@@ -670,6 +670,9 @@ func guidanceMarkerLines(s string) (start, end int) {
 // same guidance — stripped generally rather than listed, because the three that
 // were listed were the only three that ever got it (#1199).
 func guidanceHarness(harness string) string {
+	if canonical, ok := installTargetAliases[harness]; ok {
+		harness = canonical
+	}
 	if harness == "claude-auto" {
 		return "claude-code"
 	}
