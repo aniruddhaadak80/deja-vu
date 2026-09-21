@@ -286,6 +286,7 @@ func parseClineLegacyTask(path string) ([]model.Session, error) {
 	root := filepath.Dir(filepath.Dir(taskDir))
 	s := model.Session{Harness: "cline", ID: "cline-task-" + taskID, Path: path, Project: "cline"}
 	base := time.Time{}
+	workspace := ""
 	if hb, err := os.ReadFile(filepath.Join(root, "state", "taskHistory.json")); err == nil {
 		var metas []clineTaskMeta
 		if json.Unmarshal(hb, &metas) == nil {
@@ -293,6 +294,7 @@ func parseClineLegacyTask(path string) ([]model.Session, error) {
 				if m.ID == taskID {
 					s.Title = firstLineTrim(m.Task)
 					if m.CWD != "" {
+						workspace = m.CWD
 						s.Project = claudeProjectName(pathToProjectKey(m.CWD))
 					}
 					if m.TS > 0 {
@@ -318,7 +320,7 @@ func parseClineLegacyTask(path string) ([]model.Session, error) {
 				s.Touch(ts)
 				s.Messages = append(s.Messages, tool...)
 			}
-		} else if work := rooWorkRecords(m.Content, ts); len(work) > 0 {
+		} else if work := rooWorkRecords(m.Content, ts, workspace); len(work) > 0 {
 			s.Touch(ts)
 			s.Messages = append(s.Messages, work...)
 		}
@@ -357,8 +359,9 @@ var clineDialect = toolDialect{
 // tools: execute_command with `command`, and `path` on the file tools —
 // read_file, write_to_file, apply_diff, insert_content, search_and_replace,
 // replace_in_file. Neither reader emitted a call as a work record before
-// #3295. The edit span is not read: apply_diff carries a SEARCH/REPLACE
-// block, not an old_string.
+// #3295. The two sides of an edit come out of rooEditRecords rather than the
+// shared helper: apply_diff carries a SEARCH/REPLACE block, not an
+// old_string.
 var rooDialect = toolDialect{
 	pathKey: "path",
 	pathTools: map[string]bool{"read_file": true, "write_to_file": true, "apply_diff": true,
@@ -369,15 +372,28 @@ var rooDialect = toolDialect{
 
 // rooWorkRecords is clineWorkRecords for the task files: the command a call
 // ran and the files it named, under the same switches.
-func rooWorkRecords(raw json.RawMessage, ts time.Time) []model.Message {
+func rooWorkRecords(raw json.RawMessage, ts time.Time, workspace string) []model.Message {
 	var blocks []any
 	if json.Unmarshal(raw, &blocks) != nil {
 		return nil
 	}
 	var out []model.Message
 	if IndexToolPaths() {
-		if p := toolPathsIn(blocks, rooDialect); p != "" {
+		if p := rooResolvePaths(toolPathsIn(blocks, rooDialect), workspace); p != "" {
 			out = append(out, model.Message{Role: RoleFiles, Text: p, Time: ts})
+		}
+	}
+	if IndexWrites() || IndexEdits() {
+		spans, wrote := rooEditRecords(blocks, workspace)
+		if IndexWrites() {
+			for _, w := range wrote {
+				out = append(out, model.Message{Role: RoleWrote, Text: w, Time: ts})
+			}
+		}
+		if IndexEdits() {
+			for _, span := range spans {
+				out = append(out, model.Message{Role: RoleEdit, Text: span, Time: ts})
+			}
 		}
 	}
 	if IndexCommands() {
