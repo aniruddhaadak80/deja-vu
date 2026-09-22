@@ -121,8 +121,7 @@
 <h2 id="mcp-skill-command">MCP, skill, command</h2>
 <p><code>deja install omp</code> writes <code>~/.omp/agent/mcp.json</code> with the standard <code>mcpServers</code></p>
 <p>shape — the file upstream documents as the primary user-scope MCP config. After</p>
-<p>it, omp lists deja&#39;s tools itself (<code>mcp__deja_recall</code>, <code>recall_context</code>,</p>
-<p><code>remember</code>, <code>blame</code>, <code>fix</code>, <code>how</code>).</p>
+<p>it, omp lists the tool itself, under its own <code>mcp__deja</code> prefix.</p>
 <p>The skill is the shared <code>~/.agents/skills/deja-history/SKILL.md</code>: omp&#39;s <code>agents</code></p>
 <p>provider reads that directory, so it needs no file of its own. Checked by asking</p>
 <p>a running omp to list its skills.</p>
@@ -160,11 +159,11 @@
 agents can search. See the <a href="../guide/harnesses.html">harness matrix</a> for what is
 wired where, or <a href="../guide/getting-started.html">install it</a> and search your own
 history.</p>
-<p class="star-cta">Found this useful? <a href="https://github.com/vshulcz/deja-vu">Star deja-vu on GitHub</a> — it helps other developers find it.</p>
+<p class="star-cta">Found this useful? <a href="https://github.com/vshulcz/deja-vu">Star deja-vu on GitHub</a>.</p>
 </article>
 </div>
 </div>
-<footer>deja-vu is MIT-licensed and fully local. <a href="https://github.com/vshulcz/deja-vu">Source on GitHub</a> · <a href="../">Home</a></footer>
+<footer>deja-vu is MIT-licensed and runs on your machine. <a href="https://github.com/vshulcz/deja-vu">Source on GitHub</a> · <a href="../">Home</a></footer>
 <script src="../assets/guide.js" defer></script>
 </body>
 </html>

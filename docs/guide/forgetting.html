@@ -134,7 +134,7 @@
 <p>You solved something in March. In August the same agent, in the same repository, proposes the approach you already tried and backed out of. Nothing is broken — the session that held the answer ended, and its context window went with it.</p>
 
 <h2>What actually happens at the end of a session</h2>
-<p>An agent's memory during a session is its context window. When the session ends the window is discarded. What survives is a transcript file, written by the harness itself: Claude Code keeps JSONL under <code>~/.claude/projects</code>, Codex under <code>~/.codex</code>, opencode in a local database, Cursor, Gemini CLI, Zed and a dozen others each in their own format. The <a href="../registry/README.html">session format registry</a> documents where each one writes and what its records look like.</p>
+<p>An agent's memory during a session is its context window. When the session ends the window is discarded. What survives is a transcript file, written by the harness itself: Claude Code keeps JSONL under <code>~/.claude/projects</code>, Codex under <code>~/.codex</code>, opencode in a local database, Cursor, Gemini CLI, Zed and twenty-eight more agents each in their own format. The <a href="../registry/README.html">session format registry</a> documents where each one writes and what its records look like.</p>
 <p>So the work is not lost. It is unread. Nothing in the default setup opens yesterday's transcript when you ask today's question.</p>
 
 <h2>Compaction is not memory</h2>
@@ -174,10 +174,10 @@ deja install --auto</pre>
 
 <p><a href="getting-started.html">Getting started</a> · <a href="compare.html">How this compares to the memory platforms</a> · <a href="https://github.com/vshulcz/deja-vu">Source</a></p>
 
-<p class="star-cta">Found this useful? <a href="https://github.com/vshulcz/deja-vu">Star deja-vu on GitHub</a> — it helps other developers find it.</p>
+<p class="star-cta">Found this useful? <a href="https://github.com/vshulcz/deja-vu">Star deja-vu on GitHub</a>.</p>
 </article>
 </div>
-<footer>deja-vu is MIT-licensed and fully local. <a href="https://github.com/vshulcz/deja-vu">Source on GitHub</a> · <a href="../">Home</a></footer>
+<footer>deja-vu is MIT-licensed and runs on your machine. <a href="https://github.com/vshulcz/deja-vu">Source on GitHub</a> · <a href="../">Home</a></footer>
 </div>
 <script>
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.1});

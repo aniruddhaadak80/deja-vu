@@ -1,7 +1,7 @@
 // Command genregistry renders the session-format registry into pages a search
 // engine can read.
 //
-// The registry documents where thirty-three coding agents keep their history and
+// The registry documents where thirty-four coding agents keep their history and
 // what is in those files. That is the one question people put to a search
 // engine in their own words — "where does Claude Code store conversations" —
 // and the answer sat in docs/registry as raw .md, which GitHub Pages serves as
@@ -223,11 +223,11 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!DOCTYPE html>
 agents can search. See the <a href="../guide/harnesses.html">harness matrix</a> for what is
 wired where, or <a href="../guide/getting-started.html">install it</a> and search your own
 history.</p>
-<p class="star-cta">Found this useful? <a href="https://github.com/vshulcz/deja-vu">Star deja-vu on GitHub</a> — it helps other developers find it.</p>
+<p class="star-cta">Found this useful? <a href="https://github.com/vshulcz/deja-vu">Star deja-vu on GitHub</a>.</p>
 </article>
 </div>
 </div>
-<footer>deja-vu is MIT-licensed and fully local. <a href="https://github.com/vshulcz/deja-vu">Source on GitHub</a> · <a href="../">Home</a></footer>
+<footer>deja-vu is MIT-licensed and runs on your machine. <a href="https://github.com/vshulcz/deja-vu">Source on GitHub</a> · <a href="../">Home</a></footer>
 <script src="../assets/guide.js" defer></script>
 </body>
 </html>
