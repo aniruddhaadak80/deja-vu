@@ -131,6 +131,9 @@ func ParseOpencodeDBSince(db string, t time.Time) ([]model.Session, error) {
 	if t.IsZero() {
 		return ParseOpencodeDBWhere(db, "", 0)
 	}
+	if opencodeV2(db) {
+		return ParseOpencodeDBWhere(db, opencodeV2SinceWhere(t), 0)
+	}
 	return ParseOpencodeDBWhere(db, opencodeSinceWhere(t), 0)
 }
 
@@ -160,6 +163,7 @@ func parseOpencodeSchemaDB(harness, db, where string, limit int) ([]model.Sessio
 	if limit > 0 {
 		lim = fmt.Sprintf(" limit %d", limit)
 	}
+	schema := opencodeSchemaOf(db)
 	// Narrow projection: shipping full m.data/p.data JSON blobs through the
 	// sqlite3 pipe on multi-GB stores takes minutes; extracting just the
 	// needed scalars keeps the dump to tens of MB and seconds.
@@ -240,6 +244,9 @@ func parseOpencodeSchemaDB(harness, db, where string, limit int) ([]model.Sessio
 		`and json_extract(p.data,'$.tool')='bash')` +
 		` or (instr(substr(p.data,1,200),'"tool":"apply_patch"')>0 ` +
 		`and json_extract(p.data,'$.tool')='apply_patch'))` + where + ` order by s.id,m.time_created,p.id` + lim
+	if schema.v2 {
+		q = opencodeV2Query(schema.sessionTable, where, limit)
+	}
 	cmd, stopRead := sqliteReadCmd(db, q)
 	defer stopRead()
 	// What sqlite3 says when it refuses, not merely that it did. "exit status
@@ -311,6 +318,27 @@ func parseOpencodeSchemaDB(harness, db, where string, limit int) ([]model.Sessio
 			if out := str(r["out"]); out != "" && IndexToolOutput() {
 				s.Touch(t)
 				s.Messages = append(s.Messages, model.Message{Role: RoleToolOutput, Text: out, Time: t})
+			}
+			continue
+		}
+		// An `edit` call hands back the text it replaced and the text it wrote,
+		// so both sides are recorded the way every other harness's edit is.
+		if old, nw := str(r["old"]), str(r["new"]); old != "" || nw != "" {
+			path := str(r["editpath"])
+			t := partTime(r)
+			if path != "" && old != "" && IndexEdits() {
+				span := old
+				if len(span) > editSpanMax {
+					span = span[:editSpanMax]
+				}
+				s.Touch(t)
+				s.Messages = append(s.Messages, model.Message{Role: RoleEdit, Text: path + "\n" + span, Time: t})
+			}
+			if path != "" && nw != "" && IndexWrites() {
+				if rec := WroteRecord(path, nw); rec != "" {
+					s.Touch(t)
+					s.Messages = append(s.Messages, model.Message{Role: RoleWrote, Text: rec, Time: t})
+				}
 			}
 			continue
 		}
@@ -409,8 +437,8 @@ func parseOpencodeSchemaDB(harness, db, where string, limit int) ([]model.Sessio
 // have one. The column arrived with subagents; a query that fails is a store
 // without it, and nothing is stamped.
 func opencodeParents(db string) map[string]string {
-	cmd, stopRead := sqliteReadCmd(db, `select json_object('id',id,'parent_id',parent_id) from session `+
-		`where parent_id is not null and parent_id <> ''`)
+	cmd, stopRead := sqliteReadCmd(db, `select json_object('id',id,'parent_id',parent_id) from `+
+		opencodeSessionTable(db)+` where parent_id is not null and parent_id <> ''`)
 	defer stopRead()
 	b, err := cmd.Output()
 	if err != nil || len(b) == 0 {
@@ -436,7 +464,14 @@ func OpencodeCounts() (sessions, messages int, err error) {
 	if fi, e := os.Stat(OpencodeDB()); e != nil || fi.Size() == 0 {
 		return 0, 0, nil
 	}
-	cmd, stopRead := sqliteReadCmd(OpencodeDB(), "select (select count(*) from session),(select count(*) from part where json_extract(data,'$.type')='text')")
+	q := "select (select count(*) from session),(select count(*) from part where json_extract(data,'$.type')='text')"
+	if opencodeV2(OpencodeDB()) {
+		// A 2.x turn holds its parts in its own blob, so the second figure is
+		// the turns that carry words rather than the text parts under them.
+		q = "select (select count(*) from " + opencodeSessionTable(OpencodeDB()) +
+			"),(select count(*) from session_message where type in ('user','assistant'))"
+	}
+	cmd, stopRead := sqliteReadCmd(OpencodeDB(), q)
 	defer stopRead()
 	b, err := cmd.Output()
 	if err != nil {
@@ -484,7 +519,7 @@ func ParseOpencodeNewest(db string) ([]model.Session, error) {
 	if fi, err := os.Stat(db); err != nil || fi.Size() == 0 {
 		return nil, nil
 	}
-	probe, stopRead := sqliteReadCmd(db, "select id from session order by time_created desc limit 1")
+	probe, stopRead := sqliteReadCmd(db, "select id from "+opencodeSessionTable(db)+" order by time_created desc limit 1")
 	defer stopRead()
 	var whyNot bytes.Buffer
 	probe.Stderr = &whyNot
@@ -523,8 +558,8 @@ func opencodeSynthetic(v any) bool {
 // opencodeTitles maps a session id to the name opencode gave it, for the names
 // worth having. A store without the column stamps nothing.
 func opencodeTitles(db string) map[string]string {
-	cmd, stopRead := sqliteReadCmd(db, `select json_object('id',id,'title',title) from session `+
-		`where title is not null and title <> ''`)
+	cmd, stopRead := sqliteReadCmd(db, `select json_object('id',id,'title',title) from `+
+		opencodeSessionTable(db)+` where title is not null and title <> ''`)
 	defer stopRead()
 	b, err := cmd.Output()
 	if err != nil || len(b) == 0 {
