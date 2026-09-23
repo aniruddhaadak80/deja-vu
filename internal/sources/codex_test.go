@@ -3,6 +3,7 @@ package sources
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -506,5 +507,88 @@ func TestCodexEventStreamNamesTheSpeaker(t *testing.T) {
 	}
 	if byText["the answer"] != "assistant" {
 		t.Errorf("answer role = %q — the agent's words stored as the person's", byText["the answer"])
+	}
+}
+
+// A forked rollout opens with its own session_meta and then carries the
+// parent's, inherited with the history it was branched from. Letting the later
+// record win filed the child's turns under the parent: `deja show <child>`
+// answered "no session matches", and the parent came back holding both halves
+// (#3933).
+func TestCodexForkKeepsItsOwnThreadID(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "rollout-2026-06-01T02-00-00-child.jsonl")
+	body := `{"timestamp":"2026-06-01T02:00:00Z","type":"session_meta","payload":{"id":"child","forked_from_id":"parent","cwd":"/w/child"}}` + "\n" +
+		`{"timestamp":"2026-06-01T01:00:00Z","type":"session_meta","payload":{"id":"parent","cwd":"/w/parent"}}` + "\n" +
+		`{"timestamp":"2026-06-01T02:00:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"child question"}]}}` + "\n"
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ss, err := ParseCodexRollout(p)
+	if err != nil || len(ss) != 1 {
+		t.Fatalf("parse: %v %#v", err, ss)
+	}
+	if ss[0].ID != "child" {
+		t.Errorf("id = %q, want the rollout's own thread", ss[0].ID)
+	}
+	if ss[0].Project != "child" {
+		t.Errorf("project = %q, want the child's own cwd", ss[0].Project)
+	}
+}
+
+// The same rollout on append: the inherited parent record sits in the new bytes
+// this time, and the head has already settled the identity. A session that
+// changes id between the first read and the second splits in two (#3933).
+func TestCodexForkKeepsItsIdentityOnAppend(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "rollout-2026-06-01T02-00-00-child.jsonl")
+	head := `{"timestamp":"2026-06-01T02:00:00Z","type":"session_meta","payload":{"id":"child","forked_from_id":"parent","cwd":"/w/child"}}` + "\n"
+	if err := os.WriteFile(p, []byte(head), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	extra := `{"timestamp":"2026-06-01T01:00:00Z","type":"session_meta","payload":{"id":"parent","cwd":"/w/parent"}}` + "\n" +
+		`{"timestamp":"2026-06-01T02:00:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"child question"}]}}` + "\n"
+	if err := os.WriteFile(p, []byte(head+extra), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inc, err := ParseCodexRolloutFromOffset(p, int64(len(head)))
+	if err != nil || len(inc) != 1 {
+		t.Fatalf("offset parse: %v %#v", err, inc)
+	}
+	if inc[0].ID != "child" {
+		t.Errorf("append moved the session to %q", inc[0].ID)
+	}
+}
+
+// A patch names its files relative to the session's directory, and on an append
+// the record that says which directory that is sits before the offset. Without
+// carrying it in, the appended patch resolved to a bare relative path and blame
+// had nothing to match against.
+func TestCodexAppendResolvesPatchPathsAgainstTheHeadCWD(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "rollout-2026-06-01T02-00-00-child.jsonl")
+	head := `{"timestamp":"2026-06-01T02:00:00Z","type":"session_meta","payload":{"id":"child","cwd":"/w/child"}}` + "\n"
+	if err := os.WriteFile(p, []byte(head), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	patch := "*** Begin Patch\n*** Update File: app/main.go\n-old\n+new\n*** End Patch"
+	line := `{"timestamp":"2026-06-01T02:00:01Z","type":"response_item","payload":{"type":"custom_tool_call","name":"apply_patch","input":` +
+		strconv.Quote(patch) + "}}\n"
+	if err := os.WriteFile(p, []byte(head+line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ss, err := ParseCodexRolloutFromOffset(p, int64(len(head)))
+	if err != nil || len(ss) != 1 {
+		t.Fatalf("offset parse: %v %#v", err, ss)
+	}
+	want := filepath.Join("/w/child", "app/main.go")
+	found := false
+	for _, msg := range ss[0].Messages {
+		if msg.Role == RoleFiles && strings.Contains(msg.Text, want) {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("appended patch recorded %#v, want a file resolved to %q", ss[0].Messages, want)
 	}
 }
