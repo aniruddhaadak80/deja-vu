@@ -28,9 +28,4 @@ func TestOpencodePluginAsksAgainAfterAnEmptyAnswer(t *testing.T) {
 	if !strings.Contains(compact, "empties.set(key,asks)") {
 		t.Error("the count is not kept per session")
 	}
-	// The build notice keeps its own path — it is the one empty answer worth
-	// saying out loud, and it already dropped the cache before this existed.
-	if !strings.Contains(compact, "told.add(key)") || !strings.Contains(compact, "cache.delete(key)") {
-		t.Error("the warmup notice lost its own recovery")
-	}
 }

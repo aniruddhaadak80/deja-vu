@@ -24,8 +24,8 @@ func TestOpencodeSpawnPayloadIsEncodedOnce(t *testing.T) {
 	if !strings.Contains(compact, "constpayload={") {
 		t.Error("the payload is not built as an object")
 	}
-	if !strings.Contains(compact, "echo${JSON.stringify(payload)}") {
-		t.Error("the payload is not encoded on the way into the shell")
+	if !strings.Contains(compact, `runHook("hook-tool",JSON.stringify(payload))`) {
+		t.Error("the payload is not encoded on the way into the hook's stdin")
 	}
 	// What deja is handed has to parse as an object with the fields the hook
 	// reads. The generated source is not JSON, so this checks the shape the

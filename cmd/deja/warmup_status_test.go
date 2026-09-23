@@ -97,37 +97,6 @@ func TestWarmupStatusLineReadsLikeASentence(t *testing.T) {
 	}
 }
 
-// opencode injects hook output into the model's context, so the build note
-// cannot ride along with it. The plugin asks a separate command and shows a
-// TUI toast — the channel meant for the person, not the prompt.
-func TestOpencodePluginAnnouncesTheBuildInTheTUI(t *testing.T) {
-	js := opencodePluginJS("/usr/local/bin/deja")
-	for _, want := range []string{
-		"warmup-status",        // asks whether a build is running
-		"client.tui.showToast", // says so where a human will see it
-		"told.has(key)",        // and only once per session
-	} {
-		if !strings.Contains(js, want) {
-			t.Errorf("generated plugin is missing %q", want)
-		}
-	}
-	// The status must never be pushed into the model's context.
-	sysPush := strings.Index(js, "output.system.push")
-	statusCall := strings.Index(js, "warmup-status")
-	if sysPush == -1 || statusCall == -1 || statusCall < sysPush {
-		t.Fatal("the plugin asks for build status before deciding it has real context to inject")
-	}
-	if strings.Contains(js, "output.system.push(status") {
-		t.Error("the build note leaks into the model's context")
-	}
-	// The plugin needs the client to reach the TUI at all. Named rather than
-	// matched against the whole parameter list, which also carries the
-	// session's directory.
-	if !strings.Contains(js, "client") || !strings.Contains(js, "client.tui.showToast") {
-		t.Error("the plugin does not receive the client it needs for a toast")
-	}
-}
-
 // warmup-status prints one line while a build runs, nothing otherwise: hosts
 // branch on emptiness, so a stray newline would read as "still building".
 func TestWarmupStatusCommandIsSilentWithoutABuild(t *testing.T) {
@@ -196,36 +165,14 @@ func TestWarmupProgressFragment(t *testing.T) {
 	}
 }
 
-// opencode has no place to put a receipt in the prompt, so the toast is the
-// only sign the user gets that memory arrived. It fires once per session and
-// only when there is something to announce.
-func TestOpencodePluginToastsTheRecallReceipt(t *testing.T) {
-	src := opencodePluginJS("/bin/deja")
-	for _, want := range []string{
-		`hook-context`,         // JSON form: the receipt rides with the context
-		"hookSpecificOutput",   // context is read from the envelope
-		"systemMessage",        // receipt is read from the envelope
-		"told.add(key)",        // once per session
-		"client.tui.showToast", // opencode's own channel to the user
-	} {
-		if !strings.Contains(src, want) {
-			t.Fatalf("generated plugin missing %q:\n%s", want, src)
-		}
-	}
-	// --plain would drop the receipt on the floor.
-	if strings.Contains(src, "hook-context --plain") {
-		t.Fatal("plugin still asks for the plain digest, which carries no receipt")
-	}
-}
-
 // Claude Code gets a relevance pass on every prompt; opencode has the same
-// opening in messages.transform, and without it recall there is only ever as
-// good as the session digest.
+// opening in the session context hook, and without it recall there is only
+// ever as good as the session digest.
 func TestOpencodePluginRecallsPerPrompt(t *testing.T) {
 	src := opencodePluginJS("/bin/deja")
 	for _, want := range []string{
-		"experimental.chat.messages.transform",
-		`info?.role === "user"`, // the last user turn, not the last message
+		`ctx.session.hook("context"`,
+		`role === "user"`, // the last user turn, not the last message
 		"hook-prompt",
 		"additionalContext",
 	} {
@@ -239,16 +186,16 @@ func TestOpencodePluginRecallsPerPrompt(t *testing.T) {
 	}
 }
 
-// opencode spawns agents through its `task` tool — 817 of them on the store
-// this was measured against — and none of the plugin's other hooks reach one:
-// the system prompt is built for the session that spawned it, and the
-// per-prompt pass fires on what a person typed. Its instructions are the only
-// thing that arrives, so recall has to be put there.
+// opencode spawns agents through its `subagent` tool — 817 of them on the
+// store this was measured against — and none of the plugin's other hooks
+// reach one: the system prompt is built for the session that spawned it,
+// and the per-prompt pass fires on what a person typed. Its instructions are
+// the only thing that arrives, so recall has to be put there.
 func TestOpencodePluginCarriesRecallIntoASpawnedAgent(t *testing.T) {
 	src := opencodePluginJS("/bin/deja")
 	for _, want := range []string{
-		"tool.execute.before",
-		`input?.tool !== "task"`,
+		`ctx.tool.hook("execute.before"`,
+		`event.tool !== "subagent"`,
 		"hook-tool",
 		"updatedInput",
 	} {
@@ -258,17 +205,17 @@ func TestOpencodePluginCarriesRecallIntoASpawnedAgent(t *testing.T) {
 	}
 	// The spawn is rewritten, not blocked, and a spawn deja has nothing to say
 	// about keeps the prompt its parent wrote.
-	if !strings.Contains(src, "if (next) args.prompt = next") {
+	if !strings.Contains(src, "if (next) event.input = { ...args, prompt: next }") {
 		t.Fatalf("plugin does not leave a silent recall alone:\n%s", src)
 	}
 }
 
 // Compaction throws away the working transcript. Claude Code gets it indexed
-// first through PreCompact; opencode fires experimental.session.compacting at
-// the same moment and was going unused.
+// first through PreCompact; opencode fires its compaction hook at the same
+// moment and was going unused.
 func TestOpencodePluginIndexesBeforeCompaction(t *testing.T) {
 	src := opencodePluginJS("/bin/deja")
-	if !strings.Contains(src, "experimental.session.compacting") {
+	if !strings.Contains(src, `ctx.session.hook("compaction"`) {
 		t.Fatalf("compaction passes without indexing:\n%s", src)
 	}
 	if !strings.Contains(src, "hook-precompact") {

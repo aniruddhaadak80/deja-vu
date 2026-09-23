@@ -208,6 +208,7 @@ func TestInstallOpencodePlugin(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
+	t.Setenv("DEJA_OPENCODE_MAJOR", "2")
 	r, err := installOpencodePlugin("/opt/deja", false)
 	if err != nil || r.Action != "created" {
 		t.Fatalf("install: %v %v", r, err)
@@ -221,12 +222,12 @@ func TestInstallOpencodePlugin(t *testing.T) {
 	// what it already showed a session, and without an id there is nothing to
 	// skip by. Measured on a real store, half of all injections were a
 	// word-for-word repeat, nearly all within a minute of each other.
-	for _, want := range []string{"session_id", "input?.sessionID", "last?.info?.sessionID"} {
+	for _, want := range []string{"session_id", "event.sessionID"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("opencode plugin does not pass %q, so recall cannot dedupe:\n%s", want, s)
 		}
 	}
-	for _, want := range []string{"experimental.chat.system.transform",
+	for _, want := range []string{`ctx.session.hook("context"`,
 		// The launcher, not the build it was installed from (#3682).
 		hookExeInConfigs("/opt/deja"), "hook-context", "cache"} {
 		if !strings.Contains(s, want) {

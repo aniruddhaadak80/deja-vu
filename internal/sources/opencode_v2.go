@@ -170,3 +170,8 @@ func opencodeV2SinceWhere(t time.Time) string {
 // opencodeSessionTable is the table sessions live in, for the reads beside the
 // main projection — the newest id, the parents, the titles, the counts.
 func opencodeSessionTable(db string) string { return opencodeSchemaOf(db).sessionTable }
+
+// OpencodeStoreIsV2 reports whether the store at db keeps its turns in the 2.0
+// layout. install reads it to pick the plugin shape: 2.0 loads only a default
+// export, 1.x only a named one, and the wrong file is refused outright.
+func OpencodeStoreIsV2(db string) bool { return opencodeSchemaOf(db).v2 }

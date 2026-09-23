@@ -17,6 +17,9 @@ func TestOpencodePluginDoesNotAppendASecondSystemBlock(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	// The shape is picked from the installed opencode, and the test is about
+	// the 2.x one.
+	t.Setenv("DEJA_OPENCODE_MAJOR", "2")
 
 	if _, err := installOpencodePlugin("/usr/local/bin/deja", false); err != nil {
 		t.Fatal(err)
@@ -27,11 +30,13 @@ func TestOpencodePluginDoesNotAppendASecondSystemBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := string(b)
-	if strings.Contains(src, "output.system.push(ctx)\n") &&
-		!strings.Contains(src, "output.system[0] = ctx") {
-		t.Fatal("plugin appends a second system block; providers that require system-first reject the request")
-	}
-	if !strings.Contains(src, "output.system[0] = ctx") {
+	compact := strings.Join(strings.Fields(src), "")
+	if !strings.Contains(compact, `if(event.system.length)event.system[0].text=digest+"\n\n"+event.system[0].text`) {
 		t.Fatal("plugin no longer folds the recall into the first system block")
+	}
+	// The push only runs when there is no system block at all, so a second
+	// block never lands behind an existing one.
+	if !strings.Contains(compact, `elseevent.system.push({type:"text",text:digest})`) {
+		t.Fatal("the push is not guarded by emptiness")
 	}
 }

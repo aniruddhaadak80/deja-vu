@@ -16,13 +16,14 @@ func TestOpencodePluginCarriesTheFixLineAfterAFailedCommand(t *testing.T) {
 	js := opencodePluginJS("/bin/deja")
 	compact := strings.Join(strings.Fields(js), "")
 
-	if !strings.Contains(compact, `"tool.execute.after":async(input,output)=>`) {
+	if !strings.Contains(compact, `ctx.tool.hook("execute.after"`) {
 		t.Fatal("the after-tool channel is not wired")
 	}
-	// Only bash: the error signature this reads is a shell one, and an edit or
-	// a read carries no command that failed.
-	if !strings.Contains(compact, `if(input?.tool!=="bash")return`) {
-		t.Error("the channel is not scoped to bash")
+	// Only shell: the error signature this reads is a shell one, and an edit
+	// or a read carries no command that failed. A failed command still reports
+	// "completed" in V2 — the failure lives in the text, not the status.
+	if !strings.Contains(compact, `if(event.tool!=="shell"||event.status!=="completed")return`) {
+		t.Error("the channel is not scoped to completed shell calls")
 	}
 	// It calls the failure half of the pair, not the pre-tool half.
 	if !strings.Contains(compact, `hook-tool-after`) {
@@ -33,9 +34,9 @@ func TestOpencodePluginCarriesTheFixLineAfterAFailedCommand(t *testing.T) {
 	if !strings.Contains(compact, "tool_response:{output:text}") {
 		t.Error("the command output is not passed as the tool response")
 	}
-	// The line is appended to the output, not pushed as a new message: void is
-	// all the hook can return, so the tool result is the only channel.
-	if !strings.Contains(compact, "output.output=text+") {
+	// The line is appended to the output, not pushed as a new message: the
+	// hook can only replace the result, so the tool result is the channel.
+	if !strings.Contains(compact, `event.result={...result,content:[...content,{type:"text",text:extra}]}`) {
 		t.Error("the fix line is not folded into the tool output")
 	}
 	// It runs in the project, like every other call that ranks by history.

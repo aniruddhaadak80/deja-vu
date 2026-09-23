@@ -17,30 +17,21 @@ func TestOpencodePluginRunsInTheProjectDirectory(t *testing.T) {
 	js := opencodePluginJS("/bin/deja")
 	compact := strings.Join(strings.Fields(js), "")
 
-	if !strings.Contains(compact, "async({$,client,directory})") {
-		t.Error("the factory does not take the session's directory")
+	if !strings.Contains(compact, "ctx.location?.directory") {
+		t.Error("the plugin does not read the instance's location")
 	}
-	if !strings.Contains(compact, "constcwd=directory||process.cwd()") {
+	if !strings.Contains(compact, "constcwd=ctx.location?.directory||process.cwd()") {
 		t.Error("no fallback for a host that hands over no directory")
 	}
 	// The two calls that carry a payload say where they are inside it; the
 	// bare one is run from there.
-	if !strings.Contains(compact, `cd${cwd}&&"/bin/deja"hook-context`) {
+	if !strings.Contains(compact, `runHook("hook-context",undefined,cwd)`) {
 		t.Error("hook-context does not run in the project")
 	}
-	if !strings.Contains(compact, "session_id:sessionID,cwd})") {
+	if !strings.Contains(compact, `session_id:event.sessionID||"",cwd}`) {
 		t.Error("the per-prompt payload does not carry the project")
 	}
-	if !strings.Contains(compact, "session_id:input.sessionID||\"\",cwd,") {
+	if !strings.Contains(compact, `session_id:event.sessionID||"",cwd,`) {
 		t.Error("the spawn payload does not carry the project")
-	}
-	// warmup-status is about the machine, not a project: naming one there
-	// would suggest the build is per project.
-	at := strings.Index(compact, `"/bin/deja"warmup-status`)
-	if at < 0 {
-		t.Fatal("warmup-status is gone, so this test guards nothing")
-	}
-	if strings.HasSuffix(compact[:at], "cd${cwd}&&") {
-		t.Error("warmup-status was scoped to a project")
 	}
 }

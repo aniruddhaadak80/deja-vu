@@ -157,6 +157,12 @@ func autoWiringState(a autoWiring) (state string, binaryMissing bool) {
 		state = "missing"
 	case a.marker != "" && !strings.Contains(string(b), a.marker):
 		state = "stale"
+	// An opencode that moved between majors refuses the plugin written for the
+	// other one — 1.x wants a named export, 2.0 only reads the default — and
+	// the file keeps naming the hook either way. Reported as wired, an upgrade
+	// looks like a machine with memory and runs without it.
+	case a.name == "opencode" && opencodePluginShapeStale(string(b)):
+		state = "stale"
 	default:
 		state = "wired"
 	}
@@ -333,4 +339,18 @@ func codexHookTrustSection(cfg string) string {
 		}
 	}
 	return rest
+}
+
+// opencodePluginShapeStale reports whether the installed plugin is written for
+// the other opencode major. Silent when the version cannot be read: a guess
+// here would report a working machine as broken.
+func opencodePluginShapeStale(js string) bool {
+	v2 := strings.Contains(js, "export default")
+	switch major := opencodeVersionMajor(); {
+	case major == 1:
+		return v2
+	case major >= 2:
+		return !v2
+	}
+	return false
 }
