@@ -3498,6 +3498,53 @@ func dropJSONCEntry(lines []string, key string) (body, dropped []string, wasLast
 	return body, dropped, wasLast
 }
 
+// jsoncEntryIsNested reports whether the key opens an entry below the top
+// level of these block lines, and not at the top level itself. The drop
+// below matches the key wherever it sits, so an entry that lives in a
+// nesting this writer cannot edit in place must be refused rather than
+// pulled up (#3929). A key that also sits at the top level is left for the
+// normal path — the writer edits that one.
+//
+// The scan walks every quoted token, not just the one a line starts with:
+// an inline `"servers": { "deja": {…} }` hides the nested key mid-line,
+// and a line-start-only check let it through and deleted the whole
+// `servers` line, the reader's other servers included.
+func jsoncEntryIsNested(lines []string, key string) bool {
+	want := `"` + key + `"`
+	depth := 0
+	inBlock := false
+	atTop, below := false, false
+	for _, l := range lines {
+		code, next, _ := jsoncCodeOf(l, inBlock)
+		inBlock = next
+		for i := 0; i < len(code); {
+			if code[i] == '"' {
+				end := zedStringEnd(code, i)
+				if end < 0 {
+					break
+				}
+				if code[i:end] == want && jsoncIsKey(code, end) {
+					if depth > 0 {
+						below = true
+					} else {
+						atTop = true
+					}
+				}
+				i = end
+				continue
+			}
+			switch code[i] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+			}
+			i++
+		}
+	}
+	return below && !atTop
+}
+
 // jsoncBlockEntries reads the servers out of an "mcp" block written as lines:
 // the key each one is written under, and the value a parser would read there.
 //
@@ -3925,6 +3972,17 @@ func updateOpencodeJSONC(old []byte, exe string, uninstall bool) ([]byte, string
 		key := "deja"
 		if !uninstall {
 			key = dejaEntryKey(servers)
+		}
+		// OpenCode 2.x keeps its servers under `mcp.servers`, one level below
+		// the top of the `mcp` block this writer edits. The drop below matches
+		// the key at any depth, so on that shape it cut deja's entry out of
+		// the nesting and wrote ours at the top of `mcp` — moving the entry
+		// out of the place the harness reads and stranding whatever the
+		// reader had put under it, while reporting a normal replacement
+		// (#3929). This writer speaks the 1.x shape only; refuse rather than
+		// relocate.
+		if !uninstall && jsoncEntryIsNested(block, key) {
+			return nil, "", fmt.Errorf("opencode config keeps its servers under \"mcp.servers\"; deja edits the top of the \"mcp\" block and would move the entry there — add the deja server by hand")
 		}
 		body, dropped, wasLast := dropJSONCEntry(block, key)
 		// What the reader put on our own entry is theirs: an environment
