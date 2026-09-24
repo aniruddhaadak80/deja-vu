@@ -284,7 +284,7 @@ func harnessFilterDescription() string {
 	if len(names) <= 4 {
 		return "Optional filter: " + strings.Join(names, ", ") + "."
 	}
-	return fmt.Sprintf("Optional filter, the agent that wrote the session: %s and %d more — `deja sources` lists them.",
+	return fmt.Sprintf("Optional filter, the agent that wrote it: %s and %d more (`deja sources`).",
 		strings.Join(names[:4], ", "), len(names)-4)
 }
 
@@ -301,37 +301,41 @@ func harnessFilterDescription() string {
 func dejaTool() map[string]any {
 	return map[string]any{
 		"name": "deja",
-		"description": "This user's own past coding sessions, across every AI tool they use (Claude Code, Codex, Cursor, opencode, aider, gemini and others). " +
-			"Not general knowledge and not library docs — only what happened on this machine. Pick a mode:\n" +
-			"- recall: search past sessions. The moment the user implies work already happened (\"didn't we fix this?\", \"what was that error\", \"what did we decide about X\"), and always before debugging an error or re-implementing something. An exact error string, function name or path is the strongest query; a question in your own words works too.\n" +
-			"- context: the full story of the single best-matching session — problem, decisions, outcome — when a recall hit is not enough.\n" +
-			"- blame: why a file is the way it is, before you edit, refactor or delete it. Session history, not git authorship.\n" +
-			"- fix: you just hit an error. What this machine ran, or changed, after that same error before. Pass the failing output verbatim.\n" +
-			"- how: the real command with the real flags this user runs for a thing — build, test, deploy — instead of a guessed one.\n" +
-			"- remember: store one durable decision so a later session can recall it. Only after something is settled.\n" +
-			"A bracketed marker on a result is the user's own later judgement on that session; act on what it says. " +
-			"When a result genuinely helps, tell the user in one short line at the start of your reply: \"déjà vu: <what> — <how you used it> (deja:<session id>)\". Say nothing about recalls that did not help.",
+		"description": "This user's own past sessions from every AI coding tool on this machine — not general knowledge, not library docs. Modes:\n" +
+			"- recall: search past sessions. An exact error string, name or path is the strongest query; your own words work too.\n" +
+			"- context: the full story of one session, when a recall hit is not enough.\n" +
+			"- blame: why a file is the way it is, before you edit or delete it. Sessions, not git authorship.\n" +
+			"- fix: you just hit an error — what this machine ran after that same error. Pass the output verbatim.\n" +
+			"- how: the command and flags this user really runs for a thing, instead of a guessed one.\n" +
+			"- orient: the commands past sessions ran in this project and the files they worked in, before you go reading.\n" +
+			"- remember: store one settled decision for a later session.\n" +
+			"A bracketed marker on a result is the user's own later judgement; act on what it says. " +
+			"When a result helps, open your reply with one line: \"déjà vu: <what> — <how you used it> (deja:<session id>)\". Say nothing about recalls that did not help.",
 		"annotations": map[string]any{"title": "This user's past sessions", "openWorldHint": false},
 		"inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"mode":    map[string]any{"type": "string", "enum": []string{"recall", "context", "blame", "fix", "how", "remember"}, "description": "Which capability to use."},
-				"query":   map[string]any{"type": "string", "description": "recall and context: an exact token — error string, function name, flag — or the question in your own words."},
-				"path":    map[string]any{"type": "string", "description": "blame: absolute, relative, or bare filename."},
-				"error":   map[string]any{"type": "string", "description": "fix: the failing output, verbatim. Multi-line pastes are fine."},
-				"what":    map[string]any{"type": "string", "description": "how: tool or target, e.g. 'go test', 'docker compose', a script name."},
-				"text":    map[string]any{"type": "string", "description": "remember: one durable fact, decision or conclusion."},
-				"tags":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "remember: optional navigation tags, searchable as #tag."},
+				"mode":    map[string]any{"type": "string", "enum": []string{"recall", "context", "blame", "fix", "how", "orient", "remember"}},
+				"q":       map[string]any{"type": "string", "description": "What to ask about: the question or exact token; for blame a path, for fix the failing output verbatim, for remember the fact."},
 				"harness": map[string]any{"type": "string", "description": harnessFilterDescription()},
-				"project": map[string]any{"type": "string", "description": "Optional project filter; for remember, where the note is filed (default notes)."},
-				"since":   map[string]any{"type": "string", "description": "blame: age such as 30d or 24h."},
+				"project": map[string]any{"type": "string", "description": "Optional project filter; for remember, where it is filed."},
 				"limit":   map[string]any{"type": "number", "description": "Max results."},
-				"offset":  map[string]any{"type": "number", "description": "recall: skip this many ranked matches, to page without re-ranking."},
-				"all":     map[string]any{"type": "boolean", "description": "blame: every project, not just this one."},
 			},
 			"required": []string{"mode"},
 		},
 	}
+}
+
+// declaredModes is the mode list as the schema declares it, for the error a
+// model reads when it invents one.
+func declaredModes() []string {
+	schema, _ := dejaTool()["inputSchema"].(map[string]any)
+	props, _ := schema["properties"].(map[string]any)
+	mode, _ := props["mode"].(map[string]any)
+	if list, ok := mode["enum"].([]string); ok && len(list) > 0 {
+		return list
+	}
+	return []string{"recall"}
 }
 
 // dispatcherModes maps a mode onto the call that implements it. The old tool
@@ -345,7 +349,49 @@ var dispatcherModes = map[string]string{
 	"blame":    "blame",
 	"fix":      "fix",
 	"how":      "how",
+	"orient":   "orient",
 	"remember": "remember",
+}
+
+// qField is the argument each mode reads its subject from. One declared `q`
+// stands for all of them: five per-mode strings in the schema cost more than
+// the description does, and the model still has to pick the right one after
+// picking the mode. The old names keep working — they are accepted here and
+// simply not listed, the same way the pre-#1298 tool names still answer.
+var qField = map[string]string{
+	"recall":   "query",
+	"context":  "query",
+	"blame":    "path",
+	"fix":      "error",
+	"how":      "what",
+	"orient":   "",
+	"remember": "text",
+}
+
+// spreadQ copies q into the field the mode reads, unless the caller already
+// named that field itself.
+func spreadQ(mode string, raw json.RawMessage) json.RawMessage {
+	field, ok := qField[mode]
+	if !ok || field == "" {
+		return raw
+	}
+	var args map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return raw
+	}
+	q, ok := args["q"]
+	if !ok {
+		return raw
+	}
+	if cur, taken := args[field]; taken && len(bytes.TrimSpace(cur)) > 0 && string(cur) != `""` {
+		return raw
+	}
+	args[field] = q
+	out, err := json.Marshal(args)
+	if err != nil {
+		return raw
+	}
+	return out
 }
 
 func callMCPTool(dir, name string, raw json.RawMessage) (string, error) {
@@ -361,9 +407,11 @@ func callMCPTool(dir, name string, raw json.RawMessage) (string, error) {
 		if !ok {
 			// Named, not guessed at: a model that invents a mode gets the list
 			// rather than an empty answer it will read as "no history".
-			return "", fmt.Errorf("mode %q is not one of recall, context, blame, fix, how, remember", a.Mode)
+			// Named from what the tool declares rather than spelled out here:
+			// the seventh mode landed and this sentence still listed six.
+			return "", fmt.Errorf("mode %q is not one of %s", a.Mode, strings.Join(declaredModes(), ", "))
 		}
-		return callMCPTool(dir, target, raw)
+		return callMCPTool(dir, target, spreadQ(mode, raw))
 	}
 	switch name {
 	case "recall":
@@ -481,6 +529,8 @@ func callMCPTool(dir, name string, raw json.RawMessage) (string, error) {
 		return recordedMCPAnswer(dir, usage.KindFix, func() (string, int, error) { return mcpFix(dir, name, raw) })
 	case "how":
 		return recordedMCPAnswer(dir, usage.KindHow, func() (string, int, error) { return mcpHow(dir, name, raw) })
+	case "orient":
+		return recordedMCPAnswer(dir, usage.KindOrient, func() (string, int, error) { return mcpOrient(dir, name, raw) })
 	case "remember":
 		var a struct {
 			Text    string   `json:"text"`
@@ -1981,10 +2031,19 @@ func contextOthersNote(hits int) string {
 // store, four of five questions about that same day's work were headed "No
 // session is about this" while the session below was exactly about it (#657).
 //
-// A session that speaks every word of the question the store knows is about it
-// as far as deja can tell. A page where the words are spread across different
-// sessions — one holds half, another the other half — is not, and keeps the
-// warning it earned in #2074.
+// A session that speaks the words identifying the question is about it as far
+// as deja can tell. Every word was the bar before, and an agent's own phrasing
+// rarely clears it: "make test failing repository test suite command" was
+// headed "No session is about this" above the session that answers it verbatim,
+// because that session says "fails" and never says "command". The question's
+// filler decided the warning.
+//
+// The identifying words are the ones the ranking already judges a session on —
+// the rarest leadTermsKept of them, ordered by what the index says each is
+// worth. A page where those are spread across different sessions — one holds
+// half, another the other half — is still not about it, and keeps the warning
+// it earned in #2074, as does a question carrying a word the store has never
+// held: the caller decides that one before this (#657).
 func relevanceHitsAreAboutIt(hits []search.Hit, terms []string, idf map[string]float64) bool {
 	if len(hits) == 0 || len(terms) == 0 || idf == nil {
 		return false
@@ -1995,18 +2054,49 @@ func relevanceHitsAreAboutIt(hits []search.Hit, terms []string, idf map[string]f
 			known = append(known, t)
 		}
 	}
-	// A word the store does not hold at all is the #657 case and is decided by
-	// the caller before this; here it only means the question is not fully
-	// known, so nothing can hold all of it.
-	if len(known) == 0 || len(known) != len(terms) {
+	if len(known) == 0 {
 		return false
 	}
+	lead := byIdentifying(known, idf)
+	if len(lead) > leadTermsKept {
+		lead = lead[:leadTermsKept]
+	}
+	// A store of a few sessions collapses every ratio to zero, so byIdentifying
+	// orders by shape and the "identifying" words are whichever are longest.
+	// There is no way to tell the subject from the filler on such a store, and
+	// the cost of guessing is asymmetric: judging the hit on one long ordinary
+	// word made a page about a subject the store had never held read as an
+	// answer about it, which is the whole of #2074. So the old rule stands
+	// exactly where the ranking cannot help — every word, or the caveat.
+	if flatIDF(known, idf) {
+		lead = known
+	}
 	for _, h := range hits {
-		if sessionSpeaksEvery(h.Session, known) {
+		if sessionSpeaksEvery(h.Session, lead) {
 			return true
 		}
 	}
 	return false
+}
+
+// flatIDF reports a store that cannot separate these words: every one of them
+// is worth the same, which on a real store means a handful of sessions.
+func flatIDF(terms []string, idf map[string]float64) bool {
+	first, seen := 0.0, false
+	for _, t := range terms {
+		v, ok := idf[t]
+		if !ok {
+			continue
+		}
+		if !seen {
+			first, seen = v, true
+			continue
+		}
+		if v != first {
+			return false
+		}
+	}
+	return seen
 }
 
 // sessionSpeaksEvery reports whether one session says every one of these words
