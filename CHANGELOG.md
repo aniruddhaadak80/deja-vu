@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `deja bench context` measures the same chains a second time with their history folded into one long session each, and prints it as its own table. Every corpus in the benchmark filed history as many short sessions with one fact each, which is not the shape a real store has: on this machine's own store every recall page's deepest hit matched between 24 and 23,278 times. Folded, the session-start block carries a quarter of a chain's facts instead of half, in 89 tokens instead of 360 — the same content, reached less often because it is filed in one place. The existing rows do not move; the second corpus is built and indexed on its own.
+
 ### Fixed
 - On the one-tool MCP shape, `mode: "search"` and `mode: "digest"` were accepted and then answered "query required", and `mode: "recall_context"` — the name every block deja injects tells an agent to call — was rejected outright. The field that carries `q` is now keyed by the call a mode resolves to rather than by the mode, so all ten modes answer. An agent following deja's own instruction was spending a call on an error.
 
