@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- A recall page whose answer is a fragment of one long session now says which session to open: "Session <id> matched N times and only three of them fit here — call recall_context with that id to read the rest." A hit quotes at most three of its matches, and the only follow-up the page offered was `offset=` — more sessions, never more of the one already found. Over eighteen questions on a live harness the line cut billed tokens 23% to 51% and gained two correct answers of twelve; it costs 149 bytes and appears only when a served session matched ten times or more.
 - `deja bench context` measures the same chains a second time with their history folded into one long session each, and prints it as its own table. Every corpus in the benchmark filed history as many short sessions with one fact each, which is not the shape a real store has: on this machine's own store every recall page's deepest hit matched between 24 and 23,278 times. Folded, the session-start block carries a quarter of a chain's facts instead of half, in 89 tokens instead of 360 — the same content, reached less often because it is filed in one place. The existing rows do not move; the second corpus is built and indexed on its own.
 
 ### Fixed
